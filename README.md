@@ -18,3 +18,9 @@ for the creation, maintenance, and modification of pipelines). 365 Data Science 
 employs around "...150,000 professionals, and it added over 20,000 new jobs in the past year."[2].
 All that is to say that these articles provide an excellent real-world perspective and supporting reasons
 for an application like DataJourney.
+
+## References
+
+[1] Fahad Pervaiz, Aditya Vashistha, and Richard Anderson. Examining the challenges in development data pipeline. In Proceedings of the 2nd ACM SIGCAS Conference on Computing and
+Sustainable Societies, pages 13–21, 2019.
+[2] Sophie Magnet. Data engineer job outlook 2025. https://365datascience.com/career-advice/dataengineer-job-outlook-2025/h7085816380841747917105476.
