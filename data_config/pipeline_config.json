@@ -1,0 +1,205 @@
+{
+  "config_version": "1.0",
+  "project_info": {
+    "name": "Data Pipeline Visualization Project",
+    "description": "Educational project showcasing data pipeline workflows",
+    "author": "Your Name",
+    "created_date": "2025-10-07"
+  },
+  "database": {
+    "type": "postgresql",
+    "host": "${DB_HOST}",
+    "port": "${DB_PORT}",
+    "database_name": "${DB_NAME}",
+    "schema": "public",
+    "connection_note": "Credentials loaded from environment variables"
+  },
+  "pipelines": [
+    {
+      "pipeline_id": "thailand_hotels",
+      "pipeline_name": "Thailand Hotel Listings",
+      "description": "Extract hotel data from Kaggle, transform, and load to PostgreSQL",
+      "source_type": "file",
+      "status": "active",
+      "last_run": null,
+      "stages": [
+        {
+          "stage_id": "extract_kaggle_data",
+          "stage_number": 1,
+          "stage_name": "Extract from Kaggle",
+          "stage_type": "data_ingestion",
+          "description": "Download and load Thailand hotel dataset from KaggleHub",
+          "source": {
+            "type": "kagglehub",
+            "dataset_id": "aakashshinde1507/resorts-in-thailand",
+            "file_format": "csv"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "Unnamed: 0",
+              "Name of Resort",
+              "Place",
+              "room",
+              "bed",
+              "Condition",
+              "price",
+              "Travel Sustainable Level",
+              "Rating",
+              "Total Reviews"
+            ]
+          },
+          "code_snippet": "import kagglehub\nimport pandas as pd\nimport os\n\n# Download dataset\npath = kagglehub.dataset_download('aakashshinde1507/resorts-in-thailand')\n\n# Find and read CSV\ncsv_files = [f for f in os.listdir(path) if f.endswith('.csv')]\ncsv_path = os.path.join(path, csv_files[0])\ndf = pd.read_csv(csv_path)",
+          "execution_time_ms": null,
+          "notes": "Dataset downloaded from Kaggle using kagglehub library"
+        },
+        {
+          "stage_id": "transform_hotel_data",
+          "stage_number": 2,
+          "stage_name": "Clean and Transform",
+          "stage_type": "data_transformation",
+          "description": "Clean column names, parse price values, and extract review counts",
+          "transformations": [
+            {
+              "operation": "rename_columns",
+              "description": "Rename columns to snake_case format for database compatibility",
+              "mapping": {
+                "Unnamed: 0": "id",
+                "Name of Resort": "resort_name",
+                "Place": "location",
+                "room": "room_type",
+                "bed": "bed_details",
+                "Condition": "condition",
+                "price": "price",
+                "Travel Sustainable Level": "sustainability_level",
+                "Rating": "rating",
+                "Total Reviews": "total_reviews"
+              }
+            },
+            {
+              "operation": "parse_price",
+              "column": "price",
+              "description": "Extract numeric price from 'US$32' format, handle null values",
+              "target_column": "price_usd"
+            },
+            {
+              "operation": "extract_review_count",
+              "column": "total_reviews",
+              "description": "Extract numeric review count from '100 reviews' format",
+              "target_column": "review_count"
+            }
+          ],
+          "input": {
+            "columns": [
+              "Unnamed: 0",
+              "Name of Resort",
+              "Place",
+              "room",
+              "bed",
+              "Condition",
+              "price",
+              "Travel Sustainable Level",
+              "Rating",
+              "Total Reviews"
+            ]
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "id",
+              "resort_name",
+              "location",
+              "room_type",
+              "bed_details",
+              "condition",
+              "price_usd",
+              "sustainability_level",
+              "rating",
+              "review_count"
+            ]
+          },
+          "code_snippet": "# Rename columns\ndf = df.rename(columns={\n    'Unnamed: 0': 'id',\n    'Name of Resort': 'resort_name',\n    'Place': 'location',\n    'room': 'room_type',\n    'bed': 'bed_details',\n    'Condition': 'condition',\n    'price': 'price',\n    'Travel Sustainable Level': 'sustainability_level',\n    'Rating': 'rating',\n    'Total Reviews': 'total_reviews'\n})\n\n# Parse price: 'US$32' -> 32.0\ndf['price_usd'] = df['price'].str.replace('US$', '').str.replace(',', '').astype(float, errors='ignore')\n\n# Extract review count: '100 reviews' -> 100\ndf['review_count'] = df['total_reviews'].str.extract(r'(\\d+)')[0].astype(float)",
+          "execution_time_ms": null,
+          "notes": "Data cleaned and ready for database insertion"
+        },
+        {
+          "stage_id": "load_to_postgres",
+          "stage_number": 3,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Truncate and reload hotel_listings table in PostgreSQL",
+          "destination": {
+            "type": "postgresql",
+            "table_name": "hotel_listings",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "id",
+              "resort_name",
+              "location",
+              "rating",
+              "price_usd"
+            ]
+          },
+          "input": {
+            "columns": [
+              "id",
+              "resort_name",
+              "location",
+              "room_type",
+              "bed_details",
+              "condition",
+              "price_usd",
+              "sustainability_level",
+              "rating",
+              "review_count"
+            ]
+          },
+          "output": {
+            "table_name": "hotel_listings",
+            "status": "success"
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\n\n# Create engine\nengine = create_engine(os.environ['DATABASE_URL'])\n\n# Truncate table if exists\nwith engine.connect() as conn:\n    conn.execute(text('TRUNCATE TABLE IF EXISTS hotel_listings CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('hotel_listings', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_resort_name ON hotel_listings(resort_name)'))\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_location ON hotel_listings(location)'))\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_rating ON hotel_listings(rating)'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Data successfully loaded to PostgreSQL with indexes"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "hotel_listings",
+        "record_count": null
+      }
+    }
+  ],
+  "visualization_settings": {
+    "dag_layout": "horizontal",
+    "node_styling": {
+      "data_ingestion": {
+        "color": "#4CAF50",
+        "icon": "download"
+      },
+      "data_cleaning": {
+        "color": "#2196F3",
+        "icon": "clean"
+      },
+      "data_transformation": {
+        "color": "#FF9800",
+        "icon": "transform"
+      },
+      "data_loading": {
+        "color": "#9C27B0",
+        "icon": "database"
+      }
+    },
+    "edge_styling": {
+      "stroke": "#666",
+      "stroke_width": 2,
+      "arrow_size": 10
+    },
+    "interaction": {
+      "enable_click": true,
+      "enable_hover": true,
+      "show_tooltips": true
+    }
+  }
+}

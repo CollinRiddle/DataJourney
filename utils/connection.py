@@ -1,6 +1,7 @@
 import os
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
+import psycopg2
 
 load_dotenv("config/config.env")
 
@@ -13,3 +14,7 @@ def get_engine():
 
     conn_str = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}?sslmode=require"
     return create_engine(conn_str)
+
+def get_connection():
+    conn = psycopg2.connect(os.getenv("AIVEN_PG_URI"))
+    return conn
