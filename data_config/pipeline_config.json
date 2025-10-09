@@ -6,14 +6,6 @@
     "author": "Your Name",
     "created_date": "2025-10-07"
   },
-  "database": {
-    "type": "postgresql",
-    "host": "${DB_HOST}",
-    "port": "${DB_PORT}",
-    "database_name": "${DB_NAME}",
-    "schema": "public",
-    "connection_note": "Credentials loaded from environment variables"
-  },
   "pipelines": [
     {
       "pipeline_id": "thailand_hotels",
@@ -129,7 +121,6 @@
           "stage_type": "data_loading",
           "description": "Truncate and reload hotel_listings table in PostgreSQL",
           "destination": {
-            "type": "postgresql",
             "table_name": "hotel_listings",
             "write_mode": "replace",
             "create_indexes": true,
@@ -159,7 +150,7 @@
             "table_name": "hotel_listings",
             "status": "success"
           },
-          "code_snippet": "from sqlalchemy import create_engine, text\n\n# Create engine\nengine = create_engine(os.environ['DATABASE_URL'])\n\n# Truncate table if exists\nwith engine.connect() as conn:\n    conn.execute(text('TRUNCATE TABLE IF EXISTS hotel_listings CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('hotel_listings', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_resort_name ON hotel_listings(resort_name)'))\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_location ON hotel_listings(location)'))\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_rating ON hotel_listings(rating)'))\n    conn.commit()",
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\n# Create engine from environment variable\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop and recreate table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS hotel_listings CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('hotel_listings', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['id', 'resort_name', 'location', 'rating', 'price_usd']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_{col} ON hotel_listings({col})'))\n    conn.commit()",
           "execution_time_ms": null,
           "notes": "Data successfully loaded to PostgreSQL with indexes"
         }
