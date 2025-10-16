@@ -60,7 +60,7 @@ class HotelPipeline:
     # 2. Validate environment variables
     # 3. Confirm pipeline from config file
 
-    def __init__(self, config_path: str = "data_config/pipeline_config.json"):
+    def __init__(self, config_path: str = "backend/data_config/pipeline_config.json"):
 
         logger.info("Initializing Hotel Pipeline...")
         
