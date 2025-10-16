@@ -1,8 +1,12 @@
-"""
-Thailand Hotels Data Pipeline
-Extracts hotel data from Kaggle, transforms it, and loads to PostgreSQL.
-Configuration-driven pipeline following the pipeline_config.json structure.
-"""
+# ------------------------------------------------------------------- #
+# Thailand Resorts ETL Pipeline
+# Extract from Kaggle, Transform, Load to PostgreSQL
+#
+# Transformations:
+# 1. Rename columns to snake_case
+# 2. Parse price to numeric
+# 3. Extract review counts
+# ------------------------------------------------------------------- #
 
 import os
 import json
