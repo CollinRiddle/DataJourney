@@ -5,3 +5,8 @@ requests
 numpy
 python-dotenv
 utils
+Flask
+pandas
+SQLAlchemy
+kagglehub
+gunicorn
