@@ -160,25 +160,199 @@
         "database_table": "hotel_listings",
         "record_count": null
       }
+    },
+    {
+      "pipeline_id": "pokemon_data",
+      "pipeline_name": "Pokemon Data Analysis",
+      "description": "Extract Pokemon data from PokeAPI, branch processing by legendary status, and load to PostgreSQL",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "stages": [
+        {
+          "stage_id": "extract_pokeapi",
+          "stage_number": 1,
+          "stage_name": "Extract from PokeAPI",
+          "stage_type": "data_ingestion",
+          "description": "Fetch first 151 Pokemon (Gen 1) from PokeAPI including stats, types, and legendary status",
+          "source": {
+            "type": "api",
+            "base_url": "https://pokeapi.co/api/v2",
+            "limit": 151
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "pokemon_id",
+              "name",
+              "height",
+              "weight",
+              "base_experience",
+              "hp",
+              "attack",
+              "defense",
+              "special_attack",
+              "special_defense",
+              "speed",
+              "type_primary",
+              "type_secondary",
+              "is_legendary",
+              "is_mythical",
+              "generation"
+            ]
+          },
+          "code_snippet": "import requests\nimport pandas as pd\n\npokemon_list = []\nfor i in range(1, 152):\n    # Fetch pokemon data\n    response = requests.get(f'https://pokeapi.co/api/v2/pokemon/{i}')\n    pokemon_data = response.json()\n    \n    # Fetch species data for legendary status\n    species_url = pokemon_data['species']['url']\n    species_data = requests.get(species_url).json()\n    \n    pokemon = {\n        'pokemon_id': pokemon_data['id'],\n        'name': pokemon_data['name'],\n        'is_legendary': species_data['is_legendary'],\n        # ... more fields\n    }\n    pokemon_list.append(pokemon)\n\ndf = pd.DataFrame(pokemon_list)",
+          "execution_time_ms": null,
+          "notes": "API calls made to PokeAPI for comprehensive Pokemon data"
+        },
+        {
+          "stage_id": "transform_pokemon",
+          "stage_number": 2,
+          "stage_name": "Transform & Enrich",
+          "stage_type": "data_transformation",
+          "description": "Calculate total stats, determine rarity tiers, and format data for analysis",
+          "transformations": [
+            {
+              "operation": "calculate_totals",
+              "description": "Sum all base stats to create total_stats field"
+            },
+            {
+              "operation": "assign_rarity",
+              "description": "Classify Pokemon as mythical, legendary, rare, uncommon, or common based on stats and status"
+            },
+            {
+              "operation": "format_names",
+              "description": "Capitalize Pokemon names for display"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "additional_columns": [
+              "total_stats",
+              "rarity",
+              "processed_at"
+            ]
+          },
+          "code_snippet": "# Calculate total stats\ndf['total_stats'] = df['hp'] + df['attack'] + df['defense'] + \\\n                     df['special_attack'] + df['special_defense'] + df['speed']\n\n# Determine rarity\ndf['rarity'] = df.apply(lambda row: \n    'mythical' if row['is_mythical']\n    else 'legendary' if row['is_legendary']\n    else 'rare' if row['total_stats'] >= 500\n    else 'uncommon' if row['total_stats'] >= 400\n    else 'common',\n    axis=1\n)\n\n# Format names\ndf['name'] = df['name'].str.title()",
+          "execution_time_ms": null,
+          "notes": "Data enriched with calculated fields for better analysis"
+        },
+        {
+          "stage_id": "branch_legendary",
+          "stage_number": 3,
+          "stage_name": "Branch Decision",
+          "stage_type": "data_branching",
+          "description": "Split dataset into legendary/mythical and non-legendary Pokemon for specialized processing",
+          "branch_condition": "is_legendary OR is_mythical",
+          "branches": [
+            {
+              "branch_id": "legendary_path",
+              "condition": "legendary == True OR mythical == True",
+              "next_stage": "process_legendary"
+            },
+            {
+              "branch_id": "non_legendary_path",
+              "condition": "legendary == False AND mythical == False",
+              "next_stage": "process_non_legendary"
+            }
+          ],
+          "code_snippet": "# Create boolean mask for legendary/mythical\nlegendary_mask = (df['is_legendary'] == True) | (df['is_mythical'] == True)\n\n# Split into two dataframes\nlegendary_df = df[legendary_mask].copy()\nnon_legendary_df = df[~legendary_mask].copy()\n\nprint(f'Legendary: {len(legendary_df)}, Non-legendary: {len(non_legendary_df)}')",
+          "execution_time_ms": null,
+          "notes": "Data split into two processing paths based on legendary status"
+        },
+        {
+          "stage_id": "process_legendary",
+          "stage_number": 4,
+          "stage_name": "Process Legendary",
+          "stage_type": "data_transformation",
+          "description": "Apply specialized transformations for legendary Pokemon including tier classification and power scoring",
+          "branch_path": "legendary",
+          "transformations": [
+            {
+              "operation": "classify_legendary_tier",
+              "description": "Categorize as mythical, box legendary, or sub-legendary"
+            },
+            {
+              "operation": "calculate_power_score",
+              "description": "Enhanced power calculation with 1.5x multiplier for legendary status"
+            }
+          ],
+          "code_snippet": "# Classify legendary tier\nlegendary_df['legendary_tier'] = legendary_df.apply(lambda row:\n    'mythical' if row['is_mythical']\n    else 'box_legendary' if row['total_stats'] >= 680\n    else 'sub_legendary',\n    axis=1\n)\n\n# Calculate enhanced power score\nlegendary_df['power_score'] = (legendary_df['total_stats'] * 1.5 + \n                                legendary_df['base_experience'])",
+          "execution_time_ms": null,
+          "notes": "Legendary Pokemon receive enhanced analysis and classification"
+        },
+        {
+          "stage_id": "process_non_legendary",
+          "stage_number": 4,
+          "stage_name": "Process Non-Legendary",
+          "stage_type": "data_transformation",
+          "description": "Apply standard transformations for non-legendary Pokemon including combat role classification",
+          "branch_path": "non_legendary",
+          "transformations": [
+            {
+              "operation": "calculate_power_score",
+              "description": "Standard power calculation for non-legendary Pokemon"
+            },
+            {
+              "operation": "assign_combat_role",
+              "description": "Classify as sweeper, tank, or balanced based on stat distribution"
+            }
+          ],
+          "code_snippet": "# Calculate standard power score\nnon_legendary_df['power_score'] = (non_legendary_df['total_stats'] + \n                                    non_legendary_df['base_experience'] * 0.5)\n\n# Determine combat role\nnon_legendary_df['combat_role'] = non_legendary_df.apply(lambda row:\n    'sweeper' if row['attack'] > row['defense'] and row['speed'] >= 80\n    else 'tank' if row['defense'] > row['attack'] and row['hp'] >= 80\n    else 'balanced',\n    axis=1\n)",
+          "execution_time_ms": null,
+          "notes": "Non-legendary Pokemon classified by combat effectiveness"
+        },
+        {
+          "stage_id": "merge_and_load",
+          "stage_number": 5,
+          "stage_name": "Merge & Load",
+          "stage_type": "data_loading",
+          "description": "Merge both processing branches and load final dataset to PostgreSQL",
+          "destination": {
+            "table_name": "pokemon_data",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "pokemon_id",
+              "name",
+              "type_primary",
+              "rarity",
+              "is_legendary"
+            ]
+          },
+          "code_snippet": "# Ensure schema compatibility\nif 'combat_role' not in legendary_df.columns:\n    legendary_df['combat_role'] = None\n\n# Merge branches\ndf = pd.concat([legendary_df, non_legendary_df], ignore_index=True)\n\n# Load to database\nfrom sqlalchemy import create_engine\nengine = create_engine(os.environ['AIVEN_PG_URI'])\ndf.to_sql('pokemon_data', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['pokemon_id', 'name', 'type_primary', 'rarity']:\n        conn.execute(text(f'CREATE INDEX idx_{col} ON pokemon_data({col})'))",
+          "execution_time_ms": null,
+          "notes": "Both processing paths merged and loaded to database with optimized indexes"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "pokemon_data",
+        "record_count": null
+      }
     }
   ],
   "visualization_settings": {
     "dag_layout": "horizontal",
     "node_styling": {
       "data_ingestion": {
-        "color": "#4CAF50",
+        "color": "#10B981",
         "icon": "download"
       },
       "data_cleaning": {
-        "color": "#2196F3",
+        "color": "#3B82F6",
         "icon": "clean"
       },
       "data_transformation": {
-        "color": "#FF9800",
+        "color": "#F59E0B",
         "icon": "transform"
       },
+      "data_branching": {
+        "color": "#EC4899",
+        "icon": "branch"
+      },
       "data_loading": {
-        "color": "#9C27B0",
+        "color": "#8B5CF6",
         "icon": "database"
       }
     },
