@@ -5,6 +5,8 @@ function App() {
   const [selectedPipeline, setSelectedPipeline] = useState(null);
   const [selectedStage, setSelectedStage] = useState(null);
   const [showHome, setShowHome] = useState(true);
+  const [selectedComplexity, setSelectedComplexity] = useState("all");
+  const [selectedTags, setSelectedTags] = useState([]);
 
   // Fetch pipelines from the backend
   useEffect(() => {
@@ -47,6 +49,53 @@ function App() {
     setShowHome(false);
   };
 
+  // Helper function to get pipeline complexity
+  const getPipelineComplexity = (pipeline) => {
+    const hasBranching = pipeline.stages.some(s => s.stage_type === 'data_branching');
+    const stageCount = pipeline.stages.length;
+    
+    if (hasBranching || stageCount >= 5) return "advanced";
+    if (stageCount >= 3) return "intermediate";
+    return "beginner";
+  };
+
+  // Helper function to get pipeline tags
+  const getPipelineTags = (pipeline) => {
+    const tags = [];
+    if (pipeline.source_type === "api") tags.push("API");
+    if (pipeline.source_type === "file") tags.push("CSV");
+    if (pipeline.stages.some(s => s.stage_type === 'data_branching')) tags.push("Branching");
+    if (pipeline.stages.some(s => s.stage_type === 'data_transformation')) tags.push("Transform");
+    if (pipeline.stages.some(s => s.stage_type === 'data_loading')) tags.push("Database");
+    return tags;
+  };
+
+  // Toggle tag selection
+  const toggleTag = (tag) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  // Filter pipelines based on complexity and tags
+  const filteredPipelines = pipelines.filter(pipeline => {
+    // Check complexity filter
+    if (selectedComplexity !== "all" && getPipelineComplexity(pipeline) !== selectedComplexity) {
+      return false;
+    }
+    
+    // Check tag filters (pipeline must have ALL selected tags)
+    if (selectedTags.length > 0) {
+      const pipelineTags = getPipelineTags(pipeline);
+      const hasAllTags = selectedTags.every(tag => pipelineTags.includes(tag));
+      if (!hasAllTags) return false;
+    }
+    
+    return true;
+  });
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -68,8 +117,6 @@ function App() {
         zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          {/* Logo placeholder - uncomment when ready */}
-          {/* <img src="/logo.svg" alt="DataJourney" style={{ height: "40px" }} /> */}
           <h1 style={{
             margin: 0,
             fontSize: "1.75rem",
@@ -127,46 +174,167 @@ function App() {
           }}>
             Available Pipelines
           </h3>
+
+          {/* Complexity Dropdown */}
+          <select
+            value={selectedComplexity}
+            onChange={(e) => setSelectedComplexity(e.target.value)}
+            style={{
+              width: "100%",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              color: "#e4e4e7",
+              padding: "0.75rem",
+              borderRadius: "8px",
+              fontSize: "0.875rem",
+              fontWeight: "500",
+              cursor: "pointer",
+              marginBottom: "1rem",
+              transition: "all 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "rgba(255, 255, 255, 0.08)";
+              e.target.style.borderColor = "rgba(102, 126, 234, 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "rgba(255, 255, 255, 0.05)";
+              e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
+            }}
+          >
+            <option value="all" style={{ background: "#1a1a2e", color: "#e4e4e7" }}>All Complexity Levels</option>
+            <option value="beginner" style={{ background: "#1a1a2e", color: "#e4e4e7" }}>Beginner</option>
+            <option value="intermediate" style={{ background: "#1a1a2e", color: "#e4e4e7" }}>Intermediate</option>
+            <option value="advanced" style={{ background: "#1a1a2e", color: "#e4e4e7" }}>Advanced</option>
+          </select>
+
+          {/* Filter Tags */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <div style={{
+              fontSize: "0.75rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              color: "#9ca3af",
+              marginBottom: "0.5rem",
+            }}>
+              Filter by Tags
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              {["API", "CSV", "Branching", "Transform", "Database"].map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  style={{
+                    background: selectedTags.includes(tag) 
+                      ? "rgba(102, 126, 234, 0.3)" 
+                      : "rgba(102, 126, 234, 0.1)",
+                    border: selectedTags.includes(tag)
+                      ? "1px solid rgba(102, 126, 234, 0.6)"
+                      : "1px solid rgba(102, 126, 234, 0.3)",
+                    color: selectedTags.includes(tag) ? "#c7d2fe" : "#a5b4fc",
+                    padding: "0.375rem 0.75rem",
+                    borderRadius: "6px",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "rgba(102, 126, 234, 0.2)";
+                    e.target.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = selectedTags.includes(tag) 
+                      ? "rgba(102, 126, 234, 0.3)" 
+                      : "rgba(102, 126, 234, 0.1)";
+                    e.target.style.transform = "translateY(0)";
+                  }}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {pipelines.map((p) => (
-              <button
-                key={p.pipeline_id}
-                onClick={() => handlePipelineSelect(p.pipeline_id)}
-                style={{
-                  background: selectedPipeline?.pipeline_id === p.pipeline_id
-                    ? "linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3))"
-                    : "rgba(255, 255, 255, 0.05)",
-                  border: selectedPipeline?.pipeline_id === p.pipeline_id
-                    ? "1px solid rgba(102, 126, 234, 0.5)"
-                    : "1px solid rgba(255, 255, 255, 0.1)",
-                  color: "#e4e4e7",
-                  padding: "1rem",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontSize: "0.95rem",
-                  fontWeight: "600",
-                  transition: "all 0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
-                    e.target.style.background = "rgba(255, 255, 255, 0.1)";
-                    e.target.style.transform = "translateX(4px)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
-                    e.target.style.background = "rgba(255, 255, 255, 0.05)";
-                    e.target.style.transform = "translateX(0)";
-                  }
-                }}
-              >
-                <div style={{ marginBottom: "0.25rem" }}>{p.pipeline_name}</div>
-                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                  {p.stages.length} stages • {p.source_type}
-                </div>
-              </button>
-            ))}
+            {filteredPipelines.map((p) => {
+              const complexity = getPipelineComplexity(p);
+              const complexityColors = {
+                beginner: "#10B981",
+                intermediate: "#F59E0B",
+                advanced: "#EF4444"
+              };
+              
+              return (
+                <button
+                  key={p.pipeline_id}
+                  onClick={() => handlePipelineSelect(p.pipeline_id)}
+                  style={{
+                    background: selectedPipeline?.pipeline_id === p.pipeline_id
+                      ? "linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3))"
+                      : "rgba(255, 255, 255, 0.05)",
+                    border: selectedPipeline?.pipeline_id === p.pipeline_id
+                      ? "1px solid rgba(102, 126, 234, 0.5)"
+                      : "1px solid rgba(255, 255, 255, 0.1)",
+                    color: "#e4e4e7",
+                    padding: "1rem",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontSize: "0.95rem",
+                    fontWeight: "600",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
+                      e.target.style.background = "rgba(255, 255, 255, 0.1)";
+                      e.target.style.transform = "translateX(4px)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
+                      e.target.style.background = "rgba(255, 255, 255, 0.05)";
+                      e.target.style.transform = "translateX(0)";
+                    }
+                  }}
+                >
+                  <div style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between",
+                    marginBottom: "0.25rem" 
+                  }}>
+                    <span>{p.pipeline_name}</span>
+                    <span style={{
+                      background: complexityColors[complexity] + "33",
+                      color: complexityColors[complexity],
+                      padding: "0.125rem 0.5rem",
+                      borderRadius: "4px",
+                      fontSize: "0.625rem",
+                      fontWeight: "700",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      border: `1px solid ${complexityColors[complexity]}66`
+                    }}>
+                      {complexity}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    {p.stages.length} stages • {p.source_type}
+                  </div>
+                </button>
+              );
+            })}
+            {filteredPipelines.length === 0 && (
+              <div style={{ 
+                textAlign: "center", 
+                color: "#9ca3af", 
+                fontSize: "0.875rem",
+                marginTop: "2rem",
+                padding: "1rem"
+              }}>
+                No pipelines match your filters
+              </div>
+            )}
           </div>
         </aside>
 
@@ -192,10 +360,86 @@ function App() {
   );
 }
 
+// Modal Overlay Component
+function ModalOverlay({ isOpen, onClose, children }) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95))",
+          borderRadius: "24px",
+          maxWidth: "700px",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          border: "1px solid rgba(102, 126, 234, 0.3)",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+          backdropFilter: "blur(10px)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Home View Component
 function HomeView() {
+  const [selectedCard, setSelectedCard] = useState(null);
+
+  const conceptCards = [
+    {
+      id: "visualization",
+      icon: "📊",
+      title: "Why Visualize Workflows?",
+      description: "Data pipelines are complex systems that transform raw data through multiple stages. Visualization helps engineers and stakeholders understand data flow, identify bottlenecks, and optimize performance. A clear visual representation of your workflow is essential for maintaining data integrity and system reliability.",
+      detail: "Workflows drive business value. From ETL processes to machine learning pipelines, understanding how data moves through your systems is critical for decision-making and debugging.",
+      content: "When you can see your data moving through a pipeline, you gain immediate clarity on where bottlenecks occur and how different systems interact. Visual representations make it easier to:\n\n• Identify performance issues quickly\n• Communicate complex flows to stakeholders\n• Debug data quality problems\n• Plan for scalability\n\nMany organizations report that implementing proper pipeline visualization reduced troubleshooting time by 40-60%."
+    },
+    {
+      id: "understanding",
+      icon: "🔍",
+      title: "Understanding Data Stages",
+      description: "Each stage in a data pipeline performs specific transformations. From data ingestion to final loading, understanding what happens at each stage helps you trace data quality issues and optimize performance.",
+      detail: "Every transformation matters. Whether it's cleaning, validating, or aggregating—each stage plays a crucial role in the overall pipeline success.",
+      content: "A typical data pipeline consists of several key stages:\n\n• Data Ingestion: Extracting data from source systems\n• Data Cleaning: Removing errors and inconsistencies\n• Data Transformation: Converting data into the desired format\n• Data Validation: Ensuring quality standards\n• Data Loading: Moving processed data to destinations\n\nEach stage is critical. A single error in any stage can cascade through your entire pipeline."
+    },
+    {
+      id: "architecture",
+      icon: "⚙️",
+      title: "Pipeline Architecture Patterns",
+      description: "Learn industry-standard patterns for building scalable and maintainable data pipelines. From linear flows to complex branching logic, discover how successful organizations structure their data operations.",
+      detail: "Good architecture enables growth. Understanding design patterns helps you build systems that scale with your data needs.",
+      content: "Modern data architectures follow proven patterns:\n\n• Linear Pipelines: Simple, sequential data flows\n• Branching Pipelines: Different processing paths based on data characteristics\n• Fan-out/Fan-in: Parallel processing for performance\n• Event-driven: Real-time processing triggered by events\n\nChoosing the right pattern depends on your data volume, latency requirements, and business needs."
+    },
+    {
+      id: "career",
+      icon: "🚀",
+      title: "Launch Your Data Career",
+      description: "Data engineering is one of the fastest-growing fields in tech. DataJourney prepares you for real-world challenges by teaching through hands-on exploration of production-like pipelines.",
+      detail: "The future is data-driven. Master pipeline concepts now and position yourself for high-demand data engineering roles.",
+      content: "Data engineering roles are in high demand with competitive salaries:\n\n• Average salary: $120,000 - $180,000+\n• Job growth: 15-20% annually\n• Top skills: Python, SQL, Apache Spark, Kubernetes\n• Industries: Tech, Finance, Healthcare, E-commerce\n\nBy mastering pipeline concepts now, you're positioning yourself for one of tech's most rewarding careers."
+    }
+  ];
+
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{
         background: "rgba(102, 126, 234, 0.1)",
         border: "1px solid rgba(102, 126, 234, 0.3)",
@@ -211,7 +455,7 @@ function HomeView() {
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
         }}>
-          Welcome to DataJourney 🚀
+          Welcome to DataJourney
         </h1>
         <p style={{ fontSize: "1.25rem", color: "#d1d5db", lineHeight: "1.8" }}>
           An interactive exploration platform for understanding data pipelines from start to finish.
@@ -219,27 +463,103 @@ function HomeView() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", marginBottom: "3rem" }}>
-        <InfoCard
-          icon="📊"
-          title="Visualize Pipelines"
-          description="See the complete data flow with interactive DAG visualizations that bring pipelines to life."
-        />
-        <InfoCard
-          icon="🔍"
-          title="Explore Stages"
-          description="Click on any stage to dive deep into transformations, code snippets, and execution details."
-        />
-        <InfoCard
-          icon="⚡"
-          title="Learn by Doing"
-          description="Understand real-world data engineering practices through hands-on exploration."
-        />
-        <InfoCard
-          icon="🎓"
-          title="Educational Focus"
-          description="Built for students and beginners to demystify the often-overlooked world of data pipelines."
-        />
+        {conceptCards.map((card) => (
+          <InfoCard
+            key={card.id}
+            card={card}
+            onClick={() => setSelectedCard(card)}
+          />
+        ))}
       </div>
+
+      {/* Modal for detailed view */}
+      <ModalOverlay isOpen={!!selectedCard} onClose={() => setSelectedCard(null)}>
+        {selectedCard && (
+          <div style={{ padding: "2.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "2rem" }}>
+              <div>
+                <h2 style={{
+                  fontSize: "2rem",
+                  marginTop: 0,
+                  marginBottom: "0.5rem",
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}>
+                  {selectedCard.icon} {selectedCard.title}
+                </h2>
+                <p style={{ color: "#d1d5db", fontSize: "0.95rem", margin: 0 }}>
+                  {selectedCard.detail}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedCard(null)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  color: "#e4e4e7",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "1.2rem",
+                  fontWeight: "bold",
+                  width: "40px",
+                  height: "40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.1)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Image Placeholder */}
+            <div style={{
+              background: "rgba(102, 126, 234, 0.1)",
+              border: "2px dashed rgba(102, 126, 234, 0.3)",
+              borderRadius: "12px",
+              height: "250px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "2rem",
+            }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "4rem", marginBottom: "0.5rem" }}>🖼️</div>
+                <p style={{ color: "#9ca3af", margin: 0 }}>Image placeholder</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p style={{ color: "#d1d5db", lineHeight: "1.8", marginBottom: "1.5rem" }}>
+              {selectedCard.description}
+            </p>
+
+            {/* Main content */}
+            <div style={{
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              color: "#d1d5db",
+              lineHeight: "1.8",
+              whiteSpace: "pre-wrap",
+              fontSize: "0.95rem",
+            }}>
+              {selectedCard.content}
+            </div>
+          </div>
+        )}
+      </ModalOverlay>
 
       <div style={{
         background: "rgba(0, 0, 0, 0.3)",
@@ -272,29 +592,48 @@ function HomeView() {
 }
 
 // Info Card Component
-function InfoCard({ icon, title, description }) {
+function InfoCard({ card, onClick }) {
   return (
-    <div style={{
-      background: "rgba(255, 255, 255, 0.05)",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
-      borderRadius: "16px",
-      padding: "1.5rem",
-      transition: "all 0.3s ease",
-      cursor: "default",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-      e.currentTarget.style.transform = "translateY(-4px)";
-      e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.3)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
-    }}>
-      <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>{icon}</div>
-      <h3 style={{ margin: "0.5rem 0", color: "#e4e4e7" }}>{title}</h3>
-      <p style={{ margin: 0, color: "#9ca3af", lineHeight: "1.6" }}>{description}</p>
+    <div
+      onClick={onClick}
+      style={{
+        background: "rgba(255, 255, 255, 0.05)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        borderRadius: "16px",
+        padding: "2rem",
+        transition: "all 0.3s ease",
+        cursor: "pointer",
+        position: "relative",
+        overflow: "hidden",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+        e.currentTarget.style.transform = "translateY(-8px)";
+        e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.5)";
+        e.currentTarget.style.boxShadow = "0 15px 40px rgba(102, 126, 234, 0.25)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{card.icon}</div>
+      <h3 style={{ margin: "0.5rem 0 1rem 0", color: "#e4e4e7", fontSize: "1.15rem" }}>{card.title}</h3>
+      <p style={{ margin: 0, color: "#9ca3af", lineHeight: "1.6", fontSize: "0.95rem" }}>
+        {card.description}
+      </p>
+      <div style={{
+        marginTop: "1rem",
+        paddingTop: "1rem",
+        borderTop: "1px solid rgba(102, 126, 234, 0.2)",
+        color: "#667eea",
+        fontSize: "0.85rem",
+        fontWeight: "600",
+      }}>
+        Click to learn more →
+      </div>
     </div>
   );
 }
@@ -426,8 +765,6 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
           scrollPaddingTop: "50px"
         }}
       >
-
-
         {/* Scrollable and Zoomable DAG Container */}
         <div
           style={{
@@ -486,7 +823,6 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
 function DynamicArrow({ start, end, color = "#4b5563" }) {
   if (!start || !end || !start.x || !end.x) return null;
 
-  // Create a unique ID for each arrow marker
   const markerId = `arrowhead-${color.replace('#', '')}-${Math.random().toString(36).substr(2, 9)}`;
   
   return (
@@ -531,7 +867,6 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
   const [nodePositions, setNodePositions] = useState({});
   const containerRef = useRef(null);
 
-  // Update node positions when stages change or on resize
   useEffect(() => {
     let observer;
     const updatePositions = () => {
@@ -553,13 +888,11 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
           }
         });
         setNodePositions(positions);
-      }, 100); // Small delay to ensure DOM is ready
+      }, 100);
     };
 
-    // Initial position update
     updatePositions();
 
-    // Update positions on resize
     observer = new ResizeObserver(() => {
       requestAnimationFrame(updatePositions);
     });
@@ -568,7 +901,6 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
       observer.observe(containerRef.current);
     }
 
-    // Cleanup
     return () => {
       if (observer) {
         observer.disconnect();
@@ -604,7 +936,6 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
         </div>
       ))}
       
-      {/* Draw arrows between stages */}
       {stages.map((stage, index) => {
         if (index < stages.length - 1) {
           const startPos = nodePositions[stage.stage_id];
@@ -624,7 +955,7 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
   );
 }
 
-// Branching DAG (for pipelines with branches)
+// // Branching DAG (for pipelines with branches)
 function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
   const [nodePositions, setNodePositions] = useState({});
   const containerRef = useRef(null);
