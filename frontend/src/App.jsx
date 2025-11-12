@@ -120,6 +120,7 @@ function App() {
           <h1 style={{
             margin: 0,
             fontSize: "1.75rem",
+            lineHeight: "1.4",
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
@@ -252,6 +253,27 @@ function App() {
                   {tag}
                 </button>
               ))}
+            </div>
+            {/* Clear filters button */}
+            <div style={{ display: 'flex', marginTop: '0.75rem' }}>
+              <button
+                onClick={() => { setSelectedComplexity('all'); setSelectedTags([]); }}
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  border: '2px solid rgba(255,255,255,0.18)',
+                  color: '#f3f4f6',
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+                title="Clear complexity and tag filters"
+              >
+                Clear filters
+              </button>
             </div>
           </div>
 
@@ -449,6 +471,7 @@ function HomeView() {
       }}>
         <h1 style={{
           fontSize: "3rem",
+          lineHeight: "1.1",
           marginTop: 0,
           marginBottom: "1rem",
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
