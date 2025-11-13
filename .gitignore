@@ -7,9 +7,7 @@ __pycache__/
 env/
 venv/
 ENV/
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -29,9 +27,8 @@ query_testing.py
 *.env
 config/config.env
 
-# Frontend
+# Frontend - Development files only
 frontend/node_modules/
-frontend/dist/
 frontend/.vite/
 
 # IDE
