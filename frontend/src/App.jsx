@@ -321,11 +321,12 @@ function App() {
                 >
                   <div style={{ 
                     display: "flex", 
-                    alignItems: "center", 
+                    alignItems: "flex-start", 
                     justifyContent: "space-between",
-                    marginBottom: "0.25rem" 
+                    marginBottom: "0.25rem",
+                    gap: "1rem"
                   }}>
-                    <span>{p.pipeline_name}</span>
+                    <span style={{ flex: 1, wordWrap: "break-word", marginRight: "0.5rem" }}>{p.pipeline_name}</span>
                     <span style={{
                       background: complexityColors[complexity] + "33",
                       color: complexityColors[complexity],
@@ -335,7 +336,10 @@ function App() {
                       fontWeight: "700",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
-                      border: `1px solid ${complexityColors[complexity]}66`
+                      border: `1px solid ${complexityColors[complexity]}66`,
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                      marginTop: "0.125rem"
                     }}>
                       {complexity}
                     </span>
