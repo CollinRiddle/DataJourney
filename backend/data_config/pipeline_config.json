@@ -330,6 +330,166 @@
         "database_table": "pokemon_data",
         "record_count": null
       }
+    },
+    {
+      "pipeline_id": "spacex_launches",
+      "pipeline_name": "SpaceX Launch Analytics",
+      "description": "Advanced ETL pipeline analyzing SpaceX launches with multi-source integration, data quality branching, and enrichment",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "stages": [
+        {
+          "stage_id": "extract_spacex_data",
+          "stage_number": 1,
+          "stage_name": "Extract Multi-Source Data",
+          "stage_type": "data_ingestion",
+          "description": "Fetch launch, rocket, and launchpad data from SpaceX API v5 endpoints",
+          "source": {
+            "type": "api",
+            "base_url": "https://api.spacexdata.com/v5",
+            "endpoints": ["launches/past", "rockets", "launchpads"]
+          },
+          "output": {
+            "format": "dataframes",
+            "tables": ["launches", "rockets", "launchpads"]
+          },
+          "code_snippet": "import requests\nimport pandas as pd\n\nbase_url = 'https://api.spacexdata.com/v5'\n\n# Fetch launches\nresponse = requests.get(f'{base_url}/launches/past')\nlaunches_data = response.json()[-100:]  # Last 100 launches\n\n# Fetch rockets\nrockets_data = requests.get(f'{base_url}/rockets').json()\n\n# Fetch launchpads\nlaunchpads_data = requests.get(f'{base_url}/launchpads').json()",
+          "execution_time_ms": null,
+          "notes": "Extracting from three different endpoints to build comprehensive launch analytics dataset"
+        },
+        {
+          "stage_id": "enrich_and_join",
+          "stage_number": 2,
+          "stage_name": "Enrich & Join Data Sources",
+          "stage_type": "data_transformation",
+          "description": "Join launches with rocket and launchpad metadata, calculate derived metrics",
+          "transformations": [
+            {
+              "operation": "join_tables",
+              "description": "Left join launches with rockets on rocket_id, then with launchpads on launchpad_id"
+            },
+            {
+              "operation": "datetime_features",
+              "description": "Extract year, month, day of week from launch dates"
+            },
+            {
+              "operation": "calculate_efficiency",
+              "description": "Calculate cost per payload metric"
+            }
+          ],
+          "code_snippet": "# Join data sources\nenriched_df = launches_df.merge(\n    rockets_df, on='rocket_id', how='left'\n).merge(\n    launchpads_df, on='launchpad_id', how='left'\n)\n\n# Extract date features\nenriched_df['launch_year'] = pd.to_datetime(enriched_df['date_utc']).dt.year\nenriched_df['launch_day_of_week'] = pd.to_datetime(enriched_df['date_utc']).dt.day_name()\n\n# Calculate efficiency\nenriched_df['cost_per_payload'] = enriched_df['cost_per_launch'] / enriched_df['payloads']",
+          "execution_time_ms": null,
+          "notes": "Enriched dataset combines launch details with rocket specifications and launchpad information"
+        },
+        {
+          "stage_id": "data_quality_branch",
+          "stage_number": 3,
+          "stage_name": "Data Quality Assessment",
+          "stage_type": "data_branching",
+          "description": "Evaluate data completeness and route records to appropriate processing paths",
+          "branch_condition": "completeness_score >= 0.8",
+          "branches": [
+            {
+              "branch_id": "complete_data_path",
+              "condition": "completeness_score >= 80%",
+              "next_stage": "process_complete_data"
+            },
+            {
+              "branch_id": "incomplete_data_path",
+              "condition": "completeness_score < 80%",
+              "next_stage": "process_incomplete_data"
+            }
+          ],
+          "code_snippet": "# Calculate completeness score\nrequired_fields = ['success', 'rocket_name', 'launchpad_name', 'cost_per_launch', 'details']\ndf['completeness_score'] = df[required_fields].notna().sum(axis=1) / len(required_fields)\n\n# Branch data\ncomplete_data = df[df['completeness_score'] >= 0.8]\nincomplete_data = df[df['completeness_score'] < 0.8]\n\nprint(f'Complete: {len(complete_data)}, Incomplete: {len(incomplete_data)}')",
+          "execution_time_ms": null,
+          "notes": "Data quality branching enables different processing strategies based on data completeness"
+        },
+        {
+          "stage_id": "process_complete_data",
+          "stage_number": 4,
+          "stage_name": "Advanced Analytics Path",
+          "stage_type": "data_transformation",
+          "description": "Apply comprehensive transformations and analytics to complete data records",
+          "branch_path": "complete",
+          "transformations": [
+            {
+              "operation": "calculate_reliability",
+              "description": "Compute reliability score combining success rate and completeness"
+            },
+            {
+              "operation": "classify_complexity",
+              "description": "Categorize missions as Low/Medium/High complexity based on crew and payloads"
+            },
+            {
+              "operation": "temporal_features",
+              "description": "Calculate days since launch and mission duration metrics"
+            }
+          ],
+          "code_snippet": "# Calculate reliability score\ndf['reliability_score'] = (df['success_rate'] / 100) * df['completeness_score']\n\n# Mission complexity classification\ndf['mission_complexity'] = df.apply(lambda row:\n    'High' if row['crew'] > 0 or row['payloads'] > 3\n    else 'Medium' if row['payloads'] > 1\n    else 'Low',\n    axis=1\n)\n\n# Temporal calculations\ndf['days_since_launch'] = (datetime.now() - df['date_utc']).dt.days",
+          "execution_time_ms": null,
+          "notes": "Complete data receives full analytical treatment with advanced metrics"
+        },
+        {
+          "stage_id": "process_incomplete_data",
+          "stage_number": 4,
+          "stage_name": "Basic Processing Path",
+          "stage_type": "data_transformation",
+          "description": "Apply essential transformations to incomplete data records",
+          "branch_path": "incomplete",
+          "transformations": [
+            {
+              "operation": "basic_classification",
+              "description": "Apply simple success/failure categorization"
+            },
+            {
+              "operation": "simplified_scoring",
+              "description": "Use completeness score as proxy for reliability"
+            }
+          ],
+          "code_snippet": "# Basic mission outcome\ndf['mission_outcome'] = df['success'].apply(\n    lambda x: 'Success' if x == True else 'Failure' if x == False else 'Unknown'\n)\n\n# Simplified reliability\ndf['reliability_score'] = df['completeness_score']\ndf['mission_complexity'] = 'Unknown'",
+          "execution_time_ms": null,
+          "notes": "Incomplete data receives basic processing to preserve data integrity"
+        },
+        {
+          "stage_id": "merge_enrich_load",
+          "stage_number": 5,
+          "stage_name": "Merge, Final Enrichment & Load",
+          "stage_type": "data_loading",
+          "description": "Merge processing branches, add aggregate statistics, and load to PostgreSQL",
+          "destination": {
+            "table_name": "spacex_launch_analytics",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "flight_number",
+              "rocket_name",
+              "launchpad_name",
+              "launch_year",
+              "mission_outcome",
+              "processing_tier"
+            ]
+          },
+          "transformations": [
+            {
+              "operation": "merge_branches",
+              "description": "Combine complete and incomplete data processing results"
+            },
+            {
+              "operation": "aggregate_statistics",
+              "description": "Calculate rocket-level and launchpad-level success rates"
+            }
+          ],
+          "code_snippet": "# Merge branches\nfinal_df = pd.concat([complete_df, incomplete_df], ignore_index=True)\n\n# Add aggregate statistics\nfinal_df['avg_success_rate_by_rocket'] = final_df.groupby('rocket_name')['success'].transform('mean')\nfinal_df['launches_by_rocket'] = final_df.groupby('rocket_name')['rocket_name'].transform('count')\nfinal_df['avg_success_rate_by_pad'] = final_df.groupby('launchpad_name')['success'].transform('mean')\n\n# Load to database\nfrom sqlalchemy import create_engine\nengine = create_engine(os.environ['AIVEN_PG_URI'])\nfinal_df.to_sql('spacex_launch_analytics', engine, if_exists='replace', index=False)",
+          "execution_time_ms": null,
+          "notes": "Final dataset includes both processing paths with aggregate statistics for analysis"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "spacex_launch_analytics",
+        "record_count": null
+      }
     }
   ],
   "visualization_settings": {

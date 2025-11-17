@@ -291,7 +291,7 @@ class HotelPipeline:
 
             # Fix dialect for SQLAlchemy
             if database_url.startswith("postgres://"):
-                logger.info("⚡ Rewriting 'postgres://' to 'postgresql+psycopg2://' for SQLAlchemy")
+                logger.info("Rewriting 'postgres://' to 'postgresql+psycopg2://' for SQLAlchemy")
                 database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
 
             # Create engine
