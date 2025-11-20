@@ -693,9 +693,262 @@ function InfoCard({ card, onClick }) {
   );
 }
 
+// Generate sample output data for different pipelines
+function generateSampleOutputData(pipelineId) {
+  if (pipelineId === 'thailand_hotels') {
+    const locations = ['Bangkok', 'Phuket', 'Chiang Mai', 'Krabi', 'Pattaya', 'Samui'];
+    const conditions = ['excellent', 'good', 'fair', 'poor'];
+    const sustainabilityLevels = ['Platinum', 'Gold', 'Silver', 'Bronze'];
+    
+    return Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      resort_name: `Resort ${String.fromCharCode(65 + (i % 26))}${Math.floor(i / 26) + 1}`,
+      location: locations[i % locations.length],
+      room_type: i % 3 === 0 ? 'villa' : i % 3 === 1 ? 'suite' : 'standard',
+      bed_details: i % 2 === 0 ? 'king' : 'double',
+      condition: conditions[i % conditions.length],
+      price_usd: Math.round(50 + Math.random() * 450),
+      sustainability_level: sustainabilityLevels[i % sustainabilityLevels.length],
+      rating: (3.5 + Math.random() * 1.5).toFixed(1),
+      review_count: Math.floor(10 + Math.random() * 490)
+    }));
+  }
+  
+  if (pipelineId === 'pokemon_data') {
+    const pokemonNames = ['Bulbasaur', 'Ivysaur', 'Venusaur', 'Charmander', 'Charmeleon', 'Charizard', 'Squirtle', 'Wartortle', 'Blastoise', 'Caterpie'];
+    const types = ['grass', 'fire', 'water', 'electric', 'psychic', 'fighting', 'normal', 'poison', 'flying', 'rock'];
+    const rarities = ['common', 'uncommon', 'rare', 'legendary', 'mythical'];
+    const roles = ['sweeper', 'tank', 'balanced', null];
+    
+    return Array.from({ length: 100 }, (_, i) => ({
+      pokemon_id: i + 1,
+      name: pokemonNames[i % pokemonNames.length] + (i > 9 ? ` ${Math.floor(i / 10)}` : ''),
+      height: (0.3 + Math.random() * 2.5).toFixed(2),
+      weight: (2 + Math.random() * 200).toFixed(1),
+      base_experience: Math.floor(35 + Math.random() * 250),
+      hp: Math.floor(20 + Math.random() * 150),
+      attack: Math.floor(20 + Math.random() * 150),
+      defense: Math.floor(20 + Math.random() * 150),
+      special_attack: Math.floor(20 + Math.random() * 150),
+      special_defense: Math.floor(20 + Math.random() * 150),
+      speed: Math.floor(20 + Math.random() * 140),
+      type_primary: types[i % types.length],
+      type_secondary: types[(i + 1) % types.length],
+      is_legendary: i > 85,
+      rarity: rarities[i % rarities.length],
+      power_score: (150 + Math.random() * 400).toFixed(0),
+      combat_role: roles[i % roles.length]
+    }));
+  }
+  
+  if (pipelineId === 'spacex_launches') {
+    const rockets = ['Falcon 9', 'Falcon Heavy', 'Starship'];
+    const launchpads = ['CCAFS LC-40', 'Kennedy Space Center LC-39A', 'Starbase', 'VAFB SLC-4E'];
+    const outcomes = ['Success', 'Failure', 'Partial Failure'];
+    const complexity = ['Low', 'Medium', 'High'];
+    
+    return Array.from({ length: 100 }, (_, i) => ({
+      flight_number: i + 1,
+      rocket_name: rockets[i % rockets.length],
+      launchpad_name: launchpads[i % launchpads.length],
+      launch_date: new Date(2020 + Math.floor(i / 50), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
+      launch_year: 2020 + Math.floor(i / 50),
+      success: i % 5 !== 0,
+      mission_outcome: i % 5 === 0 ? 'Failure' : 'Success',
+      mission_complexity: complexity[Math.floor(Math.random() * 3)],
+      payloads: Math.floor(1 + Math.random() * 5),
+      crew: Math.floor(Math.random() * 8),
+      cost_per_launch: Math.floor(15 + Math.random() * 85),
+      reliability_score: (0.7 + Math.random() * 0.3).toFixed(2),
+      success_rate_percent: (60 + Math.random() * 40).toFixed(0)
+    }));
+  }
+  
+  return [];
+}
+
+// Data Preview Component
+function DataPreview({ pipelineId, pipelineName }) {
+  const data = generateSampleOutputData(pipelineId);
+  const [displayStart, setDisplayStart] = useState(0);
+  const rowsPerPage = 10;
+  const displayData = data.slice(displayStart, displayStart + rowsPerPage);
+  
+  if (data.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
+        No output data available for this pipeline
+      </div>
+    );
+  }
+  
+  const columns = Object.keys(data[0]);
+  
+  return (
+    <div style={{ width: '100%' }}>
+      {/* Data Summary */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        gap: '1rem',
+        marginBottom: '1.5rem'
+      }}>
+        <div style={{
+          background: 'rgba(102, 126, 234, 0.1)',
+          border: '1px solid rgba(102, 126, 234, 0.3)',
+          borderRadius: '12px',
+          padding: '1rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Total Records</div>
+          <div style={{ color: '#667eea', fontSize: '1.5rem', fontWeight: '600' }}>{data.length}</div>
+        </div>
+        <div style={{
+          background: 'rgba(102, 126, 234, 0.1)',
+          border: '1px solid rgba(102, 126, 234, 0.3)',
+          borderRadius: '12px',
+          padding: '1rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Columns</div>
+          <div style={{ color: '#667eea', fontSize: '1.5rem', fontWeight: '600' }}>{columns.length}</div>
+        </div>
+        <div style={{
+          background: 'rgba(102, 126, 234, 0.1)',
+          border: '1px solid rgba(102, 126, 234, 0.3)',
+          borderRadius: '12px',
+          padding: '1rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Processing Status</div>
+          <div style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: '600' }}>✓ Complete</div>
+        </div>
+      </div>
+      
+      {/* Data Table */}
+      <div style={{
+        background: 'rgba(0, 0, 0, 0.3)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        overflow: 'hidden',
+        marginBottom: '1rem'
+      }}>
+        <div style={{
+          overflowX: 'auto',
+          maxHeight: '500px',
+          overflowY: 'auto'
+        }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: '0.875rem'
+          }}>
+            <thead>
+              <tr style={{ background: 'rgba(0, 0, 0, 0.5)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', position: 'sticky', top: 0 }}>
+                {columns.map(col => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: '0.75rem',
+                      textAlign: 'left',
+                      color: '#a5b4fc',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap',
+                      borderRight: '1px solid rgba(255, 255, 255, 0.05)'
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayData.map((row, rowIdx) => (
+                <tr
+                  key={rowIdx}
+                  style={{
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                    background: rowIdx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.02)'
+                  }}
+                >
+                  {columns.map(col => (
+                    <td
+                      key={`${rowIdx}-${col}`}
+                      style={{
+                        padding: '0.75rem',
+                        color: '#d1d5db',
+                        borderRight: '1px solid rgba(255, 255, 255, 0.05)',
+                        maxWidth: '150px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={String(row[col])}
+                    >
+                      {String(row[col])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* Pagination Controls */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '0.875rem',
+        color: '#9ca3af'
+      }}>
+        <div>
+          Showing rows {displayStart + 1} to {Math.min(displayStart + rowsPerPage, data.length)} of {data.length}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setDisplayStart(Math.max(0, displayStart - rowsPerPage))}
+            disabled={displayStart === 0}
+            style={{
+              background: displayStart === 0 ? 'rgba(255, 255, 255, 0.05)' : 'rgba(102, 126, 234, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: displayStart === 0 ? '#6b7280' : '#a5b4fc',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              cursor: displayStart === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            ← Previous
+          </button>
+          <button
+            onClick={() => setDisplayStart(Math.min(data.length - rowsPerPage, displayStart + rowsPerPage))}
+            disabled={displayStart + rowsPerPage >= data.length}
+            style={{
+              background: displayStart + rowsPerPage >= data.length ? 'rgba(255, 255, 255, 0.05)' : 'rgba(102, 126, 234, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: displayStart + rowsPerPage >= data.length ? '#6b7280' : '#a5b4fc',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              cursor: displayStart + rowsPerPage >= data.length ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
   const hasBranching = pipeline.stages.some(s => s.stage_type === 'data_branching');
   const [zoom, setZoom] = useState(1);
+  const [activeTab, setActiveTab] = useState('flow');
 
   const zoomButtonStyle = {
     background: "rgba(255, 255, 255, 0.1)",
@@ -739,14 +992,6 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
           }}
         >
           <div>
-            <span style={{ color: "#9ca3af" }}>Last Run: </span>
-            <span style={{ color: "#d1d5db" }}>
-              {pipeline.last_run
-                ? new Date(pipeline.last_run).toLocaleString()
-                : "Never"}
-            </span>
-          </div>
-          <div>
             <span style={{ color: "#9ca3af" }}>Output: </span>
             <span style={{ color: "#d1d5db" }}>
               {pipeline.final_output?.database_table || "Not specified"}
@@ -766,109 +1011,191 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
         </div>
       </div>
 
-      {/* Zoom Controls */}
+      {/* Tab Navigation */}
       <div style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        marginBottom: "1rem",
+        display: 'flex',
+        gap: '1rem',
+        marginBottom: '0.75rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        paddingBottom: '0.5rem'
       }}>
-        <div
+        <button
+          onClick={() => setActiveTab('flow')}
           style={{
-            display: "flex",
-            gap: "0.5rem",
-            background: "rgba(0, 0, 0, 0.5)",
-            padding: "4px",
-            borderRadius: "8px",
-            backdropFilter: "blur(4px)",
+            background: activeTab === 'flow' ? 'rgba(102, 126, 234, 0.3)' : 'transparent',
+            border: activeTab === 'flow' ? '1px solid rgba(102, 126, 234, 0.5)' : '1px solid transparent',
+            color: activeTab === 'flow' ? '#a5b4fc' : '#9ca3af',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '8px 8px 0 0',
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'flow') {
+              e.target.style.color = '#a5b4fc';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'flow') {
+              e.target.style.color = '#9ca3af';
+            }
           }}
         >
-          <button
-            onClick={() => setZoom((z) => Math.min(z + 0.1, 2))}
-            style={zoomButtonStyle}
-            title="Zoom In"
-          >
-            ➕
-          </button>
-          <button
-            onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))}
-            style={zoomButtonStyle}
-            title="Zoom Out"
-          >
-            ➖
-          </button>
-          <button
-            onClick={() => setZoom(1)}
-            style={zoomButtonStyle}
-            title="Reset Zoom"
-          >
-            🔄
-          </button>
-        </div>
+          📊 Pipeline Flow
+        </button>
+        <button
+          onClick={() => setActiveTab('data')}
+          style={{
+            background: activeTab === 'data' ? 'rgba(102, 126, 234, 0.3)' : 'transparent',
+            border: activeTab === 'data' ? '1px solid rgba(102, 126, 234, 0.5)' : '1px solid transparent',
+            color: activeTab === 'data' ? '#a5b4fc' : '#9ca3af',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '8px 8px 0 0',
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'data') {
+              e.target.style.color = '#a5b4fc';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'data') {
+              e.target.style.color = '#9ca3af';
+            }
+          }}
+        >
+          📋 Output Data
+        </button>
       </div>
 
-      {/* DAG Visualization with Scroll & Zoom */}
-      <div
-        style={{
-          background: "rgba(0, 0, 0, 0.3)",
-          borderRadius: "20px",
-          padding: "1rem",
-          marginBottom: "2rem",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          overflow: "auto",
-          maxHeight: "70vh",
-          position: "relative",
-          scrollPaddingTop: "50px"
-        }}
-      >
-        {/* Scrollable and Zoomable DAG Container */}
-        <div
-          style={{
-            transform: `scale(${zoom})`,
-            transformOrigin: "center top",
-            transition: "transform 0.25s ease",
-            display: "inline-block",
-            minWidth: "100%",
-          }}
-        >
-          <h3
+      {/* Tab Content: Pipeline Flow */}
+      {activeTab === 'flow' && (
+        <>
+          {/* Zoom Controls - positioned flush at top of DAG box */}
+          <div style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: "0.5rem",
+          }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                background: "rgba(0, 0, 0, 0.5)",
+                padding: "4px",
+                borderRadius: "8px",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              <button
+                onClick={() => setZoom((z) => Math.min(z + 0.1, 2))}
+                style={zoomButtonStyle}
+                title="Zoom In"
+              >
+                ➕
+              </button>
+              <button
+                onClick={() => setZoom((z) => Math.max(z - 0.1, 0.5))}
+                style={zoomButtonStyle}
+                title="Zoom Out"
+              >
+                ➖
+              </button>
+              <button
+                onClick={() => setZoom(1)}
+                style={zoomButtonStyle}
+                title="Reset Zoom"
+              >
+                🔄
+              </button>
+            </div>
+          </div>
+
+          {/* DAG Visualization with Scroll & Zoom */}
+          <div
             style={{
-              fontSize: "0.875rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: "#9ca3af",
-              marginTop: 0,
+              background: "rgba(0, 0, 0, 0.3)",
+              borderRadius: "20px",
+              padding: "1rem",
               marginBottom: "2rem",
-              textAlign: "center",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              overflow: "auto",
+              maxHeight: "70vh",
+              position: "relative",
+              scrollPaddingTop: "50px"
             }}
           >
-            Pipeline Flow {hasBranching && "• Branching Logic"}
-          </h3>
+            {/* Scrollable and Zoomable DAG Container */}
+            <div
+              style={{
+                transform: `scale(${zoom})`,
+                transformOrigin: "center top",
+                transition: "transform 0.25s ease",
+                display: "inline-block",
+                minWidth: "100%",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "0.875rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  color: "#9ca3af",
+                  marginTop: 0,
+                  marginBottom: "2rem",
+                  textAlign: "center",
+                }}
+              >
+                Pipeline Flow {hasBranching && "• Branching Logic"}
+              </h3>
 
-          {hasBranching ? (
-            <BranchingDAG
-              stages={pipeline.stages}
-              selectedStage={selectedStage}
-              onStageClick={onStageClick}
-              stageColors={stageColors}
-            />
-          ) : (
-            <LinearDAG
-              stages={pipeline.stages}
-              selectedStage={selectedStage}
-              onStageClick={onStageClick}
-              stageColors={stageColors}
+              {hasBranching ? (
+                <BranchingDAG
+                  stages={pipeline.stages}
+                  selectedStage={selectedStage}
+                  onStageClick={onStageClick}
+                  stageColors={stageColors}
+                />
+              ) : (
+                <LinearDAG
+                  stages={pipeline.stages}
+                  selectedStage={selectedStage}
+                  onStageClick={onStageClick}
+                  stageColors={stageColors}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Stage Details Panel */}
+          {selectedStage && (
+            <StageDetailsPanel
+              stage={selectedStage}
+              stageColor={stageColors[selectedStage.stage_type]}
+              onClose={() => onStageClick(selectedStage)}
             />
           )}
-        </div>
-      </div>
+        </>
+      )}
 
-      {/* Stage Details Panel */}
-      {selectedStage && (
-        <StageDetailsPanel
-          stage={selectedStage}
-          stageColor={stageColors[selectedStage.stage_type]}
-          onClose={() => onStageClick(selectedStage)}
-        />
+      {/* Tab Content: Output Data */}
+      {activeTab === 'data' && (
+        <div style={{
+          background: "rgba(0, 0, 0, 0.3)",
+          borderRadius: "20px",
+          padding: "2rem",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+        }}>
+          <DataPreview
+            pipelineId={pipeline.pipeline_id}
+            pipelineName={pipeline.pipeline_name}
+          />
+        </div>
       )}
     </div>
   );
