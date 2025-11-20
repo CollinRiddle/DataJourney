@@ -559,7 +559,7 @@ class SpaceXPipeline:
 
     # ---------------------------------------------------------- #
     # Safe fetch with fallback and non-fatal handling
-    def _safe_fetch(self, url_v5: str, url_v4: str = None, item_type: str = "resource"):
+    def _safe_fetch(self, url_v5: str, url_v4: Optional[str] = None, item_type: str = "resource"):
         """
         Attempts to fetch data from a v5 endpoint, falls back to v4,
         and returns None instead of raising fatal errors.
