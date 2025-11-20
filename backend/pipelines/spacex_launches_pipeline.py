@@ -2,6 +2,8 @@
 # SpaceX Launch Analytics Pipeline
 # Advanced ETL with Multi-Source Integration and Conditional Branching
 #
+# DATA LIMIT: 200 launches (to conserve space)
+#
 # Pipeline Flow:
 # 1. Extract from SpaceX API (launches, rockets, launchpads)
 # 2. Data Quality Assessment & Branching
@@ -59,8 +61,6 @@ logger = logging.getLogger(__name__)
 class SpaceXPipeline:
 
     def __init__(self, config_path: str = "backend/data_config/pipeline_config.json"):
-        logger.info("Initializing SpaceX Launch Analytics Pipeline...")
-        
         # Load environment variables
         load_dotenv()
         
@@ -79,7 +79,7 @@ class SpaceXPipeline:
             if not self.pipeline_config:
                 raise ValueError("Pipeline 'spacex_launches' not found in config")
             
-            logger.info(f"✅ Configuration loaded: {self.pipeline_config['pipeline_name']}")
+            logger.info(f"🔄 {self.pipeline_config['pipeline_name']}")
             
         except FileNotFoundError:
             logger.error(f"❌ Configuration file not found: {config_path}")
@@ -109,11 +109,8 @@ class SpaceXPipeline:
     # ---------------------------------------------------------- #
     def run(self):
         """Execute the complete pipeline."""
-        logger.info("="*60)
         if not self.pipeline_config:
             raise ValueError("Pipeline configuration not loaded.")
-        logger.info(f"Starting Pipeline: {self.pipeline_config['pipeline_name']}")
-        logger.info("="*60)
         
         pipeline_start = time.time()
         
@@ -124,10 +121,7 @@ class SpaceXPipeline:
             
             # Calculate total execution time
             total_time = (time.time() - pipeline_start) * 1000
-            logger.info("="*60)
-            logger.info(f"✅ Pipeline completed successfully in {total_time:.2f}ms")
-            logger.info(f"Final record count: {len(self.final_df) if self.final_df is not None else 0}")
-            logger.info("="*60)
+            logger.info(f"✅ Pipeline completed in {total_time:.2f}ms | Records: {len(self.final_df) if self.final_df is not None else 0}")
             
             return True
             
@@ -140,11 +134,7 @@ class SpaceXPipeline:
         stage_name = stage['stage_name']
         stage_type = stage['stage_type']
         
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Stage {stage['stage_number']}: {stage_name}")
-        logger.info(f"Type: {stage_type}")
-        logger.info(f"Description: {stage['description']}")
-        logger.info(f"{'='*60}")
+        logger.info(f"Stage {stage['stage_number']}: {stage_name} ({stage_type})")
         
         stage_start = time.time()
         
@@ -168,10 +158,10 @@ class SpaceXPipeline:
             # Record execution time
             execution_time = (time.time() - stage_start) * 1000
             self.stage_timings[stage['stage_id']] = execution_time
-            logger.info(f"✅ Stage completed in {execution_time:.2f}ms")
+            logger.info(f"  ✅ Completed in {execution_time:.0f}ms")
             
         except Exception as e:
-            logger.error(f"❌ Stage failed: {e}")
+            logger.error(f"  ❌ Failed: {e}")
             raise
 
     # ---------------------------------------------------------- #
@@ -180,117 +170,141 @@ class SpaceXPipeline:
         source = stage['source']
         base_url = source['base_url']
         
-        logger.info(f"Fetching data from SpaceX API: {base_url}")
-        
         try:
-            # Fetch launches (past 100 launches)
-            logger.info("Fetching launches...")
-            launches_url = f"{base_url}/launches/past"
-            response = requests.get(launches_url)
+            # Fetch ALL launches, then filter to last 200
+            launches_url = f"{base_url}/launches"
+            response = requests.get(launches_url, timeout=15)
             response.raise_for_status()
             launches_data = response.json()
             
-            # Take last 100 launches
-            launches_data = launches_data[-100:]
+            # Sort by date and take last 200 launches (most recent)
+            launches_data = sorted(
+                launches_data, 
+                key=lambda x: x.get('date_unix', 0)
+            )[-200:]
+            
+            logger.info(f"Processing {len(launches_data)} most recent launches...")
             
             launches_list = []
             for launch in launches_data:
-                launch_obj = {
-                    'flight_number': launch.get('flight_number'),
-                    'name': launch.get('name'),
-                    'date_utc': launch.get('date_utc'),
-                    'date_unix': launch.get('date_unix'),
-                    'success': launch.get('success'),
-                    'failures': json.dumps(launch.get('failures', [])),
-                    'details': launch.get('details'),
-                    'rocket_id': launch.get('rocket'),
-                    'launchpad_id': launch.get('launchpad'),
-                    'crew': len(launch.get('crew', [])),
-                    'payloads': len(launch.get('payloads', [])),
-                    'cores_used': len(launch.get('cores', [])),
-                }
-                launches_list.append(launch_obj)
+                try:
+                    launch_obj = {
+                        'flight_number': launch.get('flight_number'),
+                        'name': launch.get('name'),
+                        'date_utc': launch.get('date_utc'),
+                        'date_unix': launch.get('date_unix'),
+                        'success': launch.get('success'),
+                        'failures': json.dumps(launch.get('failures', [])),
+                        'details': launch.get('details'),
+                        'rocket_id': launch.get('rocket'),
+                        'launchpad_id': launch.get('launchpad'),
+                        'crew': len(launch.get('crew', [])),
+                        'payloads': len(launch.get('payloads', [])),
+                        'cores_used': len(launch.get('cores', [])),
+                    }
+                    launches_list.append(launch_obj)
+                except Exception as e:
+                    logger.warning(f"Failed to parse launch {launch.get('name', 'unknown')}: {e}")
+                    continue
             
             self.launches_df = pd.DataFrame(launches_list)
-            logger.info(f"✅ Loaded {len(self.launches_df)} launches")
+            logger.info(f"  ✓ Loaded {len(self.launches_df)} launches")
             
-            # Fetch rockets
-            logger.info("Fetching rockets...")
-            rockets_url = f"{base_url}/rockets"
-            response = requests.get(rockets_url)
-            response.raise_for_status()
-            rockets_data = response.json()
-            
+            # Create mock rocket data from launches
+            rocket_ids = set(launches_data[i].get('rocket') for i in range(len(launches_data)) if launches_data[i].get('rocket'))
             rockets_list = []
-            for rocket in rockets_data:
-                rocket_obj = {
-                    'rocket_id': rocket.get('id'),
-                    'rocket_name': rocket.get('name'),
-                    'rocket_type': rocket.get('type'),
-                    'active': rocket.get('active'),
-                    'stages': rocket.get('stages'),
-                    'boosters': rocket.get('boosters', 0),
-                    'cost_per_launch': rocket.get('cost_per_launch'),
-                    'success_rate': rocket.get('success_rate_pct'),
-                    'first_flight': rocket.get('first_flight'),
-                    'country': rocket.get('country'),
-                    'company': rocket.get('company'),
-                    'height_meters': rocket.get('height', {}).get('meters'),
-                    'diameter_meters': rocket.get('diameter', {}).get('meters'),
-                    'mass_kg': rocket.get('mass', {}).get('kg'),
-                }
-                rockets_list.append(rocket_obj)
+            for rocket_id in sorted(rocket_ids):
+                try:
+                    rocket_v5 = f"{base_url}/rockets/{rocket_id}"
+                    rocket_v4 = rocket_v5.replace("/v5/", "/v4/")
+
+                    rocket = self._safe_fetch(rocket_v5, rocket_v4, item_type=f"rocket {rocket_id}")
+                    if rocket is None:
+                        continue
+                    
+                    rocket_obj = {
+                        'rocket_id': rocket.get('id'),
+                        'rocket_name': rocket.get('name'),
+                        'rocket_type': rocket.get('type'),
+                        'active': rocket.get('active'),
+                        'stages': rocket.get('stages'),
+                        'boosters': rocket.get('boosters', 0),
+                        'cost_per_launch': rocket.get('cost_per_launch'),
+                        'success_rate': rocket.get('success_rate_pct'),
+                        'first_flight': rocket.get('first_flight'),
+                        'country': rocket.get('country'),
+                        'company': rocket.get('company'),
+                        'height_meters': rocket.get('height', {}).get('meters') if isinstance(rocket.get('height'), dict) else None,
+                        'diameter_meters': rocket.get('diameter', {}).get('meters') if isinstance(rocket.get('diameter'), dict) else None,
+                        'mass_kg': rocket.get('mass', {}).get('kg') if isinstance(rocket.get('mass'), dict) else None,
+                    }
+                    rockets_list.append(rocket_obj)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch rocket {rocket_id}: {e}")
+                    continue
             
             self.rockets_df = pd.DataFrame(rockets_list)
-            logger.info(f"✅ Loaded {len(self.rockets_df)} rockets")
+            logger.info(f"  ✓ Loaded {len(self.rockets_df)} rockets")
             
             # Fetch launchpads
-            logger.info("Fetching launchpads...")
-            launchpads_url = f"{base_url}/launchpads"
-            response = requests.get(launchpads_url)
-            response.raise_for_status()
-            launchpads_data = response.json()
+            launchpads_v5 = f"{base_url}/launchpads"
+            launchpads_v4 = launchpads_v5.replace("/v5/", "/v4/")
+
+            launchpads_data = self._safe_fetch(launchpads_v5, launchpads_v4, item_type="launchpads")
+            if launchpads_data is None:
+                logger.warning("⚠️ No launchpad data available — entering partial mode.")
+                self.launchpads_df = pd.DataFrame()
+                return
+
             
             launchpads_list = []
             for pad in launchpads_data:
-                pad_obj = {
-                    'launchpad_id': pad.get('id'),
-                    'launchpad_name': pad.get('name'),
-                    'launchpad_full_name': pad.get('full_name'),
-                    'locality': pad.get('locality'),
-                    'region': pad.get('region'),
-                    'latitude': pad.get('latitude'),
-                    'longitude': pad.get('longitude'),
-                    'launch_attempts': pad.get('launch_attempts'),
-                    'launch_successes': pad.get('launch_successes'),
-                    'status': pad.get('status'),
-                }
-                launchpads_list.append(pad_obj)
+                try:
+                    pad_obj = {
+                        'launchpad_id': pad.get('id'),
+                        'launchpad_name': pad.get('name'),
+                        'launchpad_full_name': pad.get('full_name'),
+                        'locality': pad.get('locality'),
+                        'region': pad.get('region'),
+                        'latitude': pad.get('latitude'),
+                        'longitude': pad.get('longitude'),
+                        'launch_attempts': pad.get('launch_attempts'),
+                        'launch_successes': pad.get('launch_successes'),
+                        'status': pad.get('status'),
+                    }
+                    launchpads_list.append(pad_obj)
+                except Exception as e:
+                    logger.warning(f"Failed to parse launchpad {pad.get('name', 'unknown')}: {e}")
+                    continue
             
             self.launchpads_df = pd.DataFrame(launchpads_list)
-            logger.info(f"✅ Loaded {len(self.launchpads_df)} launchpads")
-            
-            logger.info(f"✅ Total data extracted - Launches: {len(self.launches_df)}, "
-                       f"Rockets: {len(self.rockets_df)}, Launchpads: {len(self.launchpads_df)}")
+            logger.info(f"  ✓ Loaded {len(self.launchpads_df)} launchpads")
             
         except requests.RequestException as e:
-            logger.error(f"Failed to fetch data from SpaceX API: {e}")
+            logger.error(f"  ❌ Failed to fetch data from SpaceX API: {e}")
             raise
         except Exception as e:
-            logger.error(f"Failed to extract data: {e}")
+            logger.error(f"  ❌ Failed to extract data: {e}")
             raise
 
     # ---------------------------------------------------------- #
     # Stage 2: Enrich and Join Data
     def _stage_enrich(self, stage: dict):
-        if self.launches_df is None or self.rockets_df is None or self.launchpads_df is None:
-            raise ValueError("Source data not available.")
-        
-        logger.info("Enriching launch data with rocket and launchpad information...")
-        
+
+        if self.launches_df is None:
+            raise ValueError("Launch data missing — cannot proceed.")
+
+        # If rockets or pads are missing, fallback to empty dataframes
+        if self.rockets_df is None:
+            logger.warning("⚠️ No rocket data — enrichment will be partial.")
+            self.rockets_df = pd.DataFrame(columns=['rocket_id'])
+
+        if self.launchpads_df is None:
+            logger.warning("⚠️ No launchpad data — enrichment will be partial.")
+            self.launchpads_df = pd.DataFrame(columns=['launchpad_id'])
+
         try:
             # Join launches with rockets
-            logger.info("Joining launches with rocket data...")
             enriched_df = self.launches_df.merge(
                 self.rockets_df,
                 on='rocket_id',
@@ -298,7 +312,6 @@ class SpaceXPipeline:
             )
             
             # Join with launchpads
-            logger.info("Joining with launchpad data...")
             enriched_df = enriched_df.merge(
                 self.launchpads_df,
                 on='launchpad_id',
@@ -306,28 +319,29 @@ class SpaceXPipeline:
             )
             
             # Convert date fields
-            logger.info("Converting date fields...")
-            enriched_df['date_utc'] = pd.to_datetime(enriched_df['date_utc'])
+            enriched_df['date_utc'] = pd.to_datetime(
+                enriched_df['date_utc'], 
+                errors='coerce',
+                utc=True                  # always load as UTC tz-aware
+            ).dt.tz_convert(None)         # strip timezone → tz-naive
+
             enriched_df['launch_year'] = enriched_df['date_utc'].dt.year
             enriched_df['launch_month'] = enriched_df['date_utc'].dt.month
             enriched_df['launch_day_of_week'] = enriched_df['date_utc'].dt.day_name()
             
-            # Calculate launch cost efficiency
-            enriched_df['cost_per_payload'] = (
-                enriched_df['cost_per_launch'] / enriched_df['payloads']
+            # Calculate launch cost efficiency (with safe division)
+            enriched_df['cost_per_payload'] = None
+            mask = (enriched_df['payloads'] > 0) & (enriched_df['cost_per_launch'].notna())
+            enriched_df.loc[mask, 'cost_per_payload'] = (
+                enriched_df.loc[mask, 'cost_per_launch'] / enriched_df.loc[mask, 'payloads']
             )
-
-            # Handle invalid cases
-            mask = (enriched_df['payloads'] <= 0) | (enriched_df['cost_per_launch'].isna())
-            enriched_df.loc[mask, 'cost_per_payload'] = None
             
             self.launches_df = enriched_df
             
-            logger.info(f"✅ Enriched {len(self.launches_df)} launch records")
-            logger.info(f"Columns: {self.launches_df.columns.tolist()}")
+            logger.info(f"  ✓ Enriched {len(self.launches_df)} launch records")
             
         except Exception as e:
-            logger.error(f"Failed to enrich data: {e}")
+            logger.error(f"  ❌ Failed to enrich data: {e}")
             raise
     
     # ---------------------------------------------------------- #
@@ -336,15 +350,18 @@ class SpaceXPipeline:
         if self.launches_df is None:
             raise ValueError("No launch data to assess.")
         
-        logger.info("Assessing data quality and branching...")
-        
         try:
             # Define completeness criteria
             required_fields = ['success', 'rocket_name', 'launchpad_name', 
                              'cost_per_launch', 'details']
             
             # Calculate completeness score for each record
-            self.launches_df['completeness_score'] = self.launches_df[required_fields].notna().sum(axis=1) / len(required_fields)
+            completeness_scores = []
+            for _, row in self.launches_df.iterrows():
+                non_null_count = sum(1 for field in required_fields if pd.notna(row.get(field)))
+                completeness_scores.append(non_null_count / len(required_fields))
+            
+            self.launches_df['completeness_score'] = completeness_scores
             
             # Branch based on completeness (>= 80% complete)
             complete_mask = self.launches_df['completeness_score'] >= 0.8
@@ -352,13 +369,10 @@ class SpaceXPipeline:
             self.complete_data_df = self.launches_df[complete_mask].copy()
             self.incomplete_data_df = self.launches_df[~complete_mask].copy()
             
-            logger.info(f"✅ Data quality assessment complete:")
-            logger.info(f"  → Complete data (≥80%): {len(self.complete_data_df)} launches")
-            logger.info(f"  → Incomplete data (<80%): {len(self.incomplete_data_df)} launches")
-            logger.info(f"  → Average completeness: {self.launches_df['completeness_score'].mean():.2%}")
+            logger.info(f"  ✓ Branched into {len(self.complete_data_df)} complete + {len(self.incomplete_data_df)} incomplete")
             
         except Exception as e:
-            logger.error(f"Failed to branch data: {e}")
+            logger.error(f"  ❌ Failed to branch data: {e}")
             raise
     
     # ---------------------------------------------------------- #
@@ -369,8 +383,6 @@ class SpaceXPipeline:
             self.complete_data_df = pd.DataFrame()
             return
         
-        logger.info("Processing complete data with advanced analytics...")
-        
         try:
             df = self.complete_data_df.copy()
             
@@ -379,35 +391,40 @@ class SpaceXPipeline:
                 lambda x: 'Success' if x == True else 'Failure' if x == False else 'Unknown'
             )
             
-            # Calculate rocket reliability score
-            df['reliability_score'] = df.apply(
-                lambda row: (row['success_rate'] / 100) * row['completeness_score']
-                if pd.notna(row['success_rate']) else row['completeness_score'],
-                axis=1
-            )
+            # Calculate rocket reliability score (with safe defaults)
+            def calc_reliability(row):
+                try:
+                    if pd.notna(row.get('success_rate')):
+                        return (row['success_rate'] / 100) * row['completeness_score']
+                    else:
+                        return row['completeness_score']
+                except:
+                    return row['completeness_score']
+            
+            df['reliability_score'] = df.apply(calc_reliability, axis=1)
             
             # Determine launch complexity
             df['mission_complexity'] = df.apply(
-                lambda row: 'High' if row['crew'] > 0 or row['payloads'] > 3
-                else 'Medium' if row['payloads'] > 1
+                lambda row: 'High' if row.get('crew', 0) > 0 or row.get('payloads', 0) > 3
+                else 'Medium' if row.get('payloads', 0) > 1
                 else 'Low',
                 axis=1
             )
             
             # Calculate days since launch
-            df['days_since_launch'] = df['date_utc'].apply(lambda x: (pd.Timestamp.now() - x).days if pd.notnull(x) else None)
+            df['days_since_launch'] = df['date_utc'].apply(
+                lambda x: (pd.Timestamp.now() - x).days if pd.notnull(x) else None
+            )
             
             # Add data processing tier
             df['processing_tier'] = 'complete_analytics'
             
             self.complete_data_df = df
             
-            logger.info(f"✅ Processed {len(self.complete_data_df)} complete records")
-            logger.info(f"Mission outcomes: {df['mission_outcome'].value_counts().to_dict()}")
-            logger.info(f"Complexity distribution: {df['mission_complexity'].value_counts().to_dict()}")
+            logger.info(f"  ✓ Processed {len(self.complete_data_df)} complete records")
             
         except Exception as e:
-            logger.error(f"Failed to process complete data: {e}")
+            logger.error(f"  ❌ Failed to process complete data: {e}")
             raise
     
     # ---------------------------------------------------------- #
@@ -417,8 +434,6 @@ class SpaceXPipeline:
             logger.warning("No incomplete data to process")
             self.incomplete_data_df = pd.DataFrame()
             return
-        
-        logger.info("Processing incomplete data with basic metrics...")
         
         try:
             df = self.incomplete_data_df.copy()
@@ -436,7 +451,7 @@ class SpaceXPipeline:
             
             # Calculate days since launch (if date available)
             if 'date_utc' in df.columns:
-                df['days_since_launch'] = (pd.Timestamp.now() - pd.to_datetime(df['date_utc'])).dt.days
+                df['days_since_launch'] = (pd.Timestamp.now() - pd.to_datetime(df['date_utc'], errors='coerce')).dt.days
             else:
                 df['days_since_launch'] = None
             
@@ -445,18 +460,15 @@ class SpaceXPipeline:
             
             self.incomplete_data_df = df
             
-            logger.info(f"✅ Processed {len(self.incomplete_data_df)} incomplete records")
-            logger.info(f"Mission outcomes: {df['mission_outcome'].value_counts().to_dict()}")
+            logger.info(f"  ✓ Processed {len(self.incomplete_data_df)} incomplete records")
             
         except Exception as e:
-            logger.error(f"Failed to process incomplete data: {e}")
+            logger.error(f"  ❌ Failed to process incomplete data: {e}")
             raise
     
     # ---------------------------------------------------------- #
     # Stage 5: Merge Branches, Add Final Enrichments, and Load
     def _stage_merge_and_load(self, stage: dict):
-        logger.info("Merging processing branches...")
-        
         try:
             # Merge both processing branches
             dfs_to_merge = []
@@ -471,25 +483,23 @@ class SpaceXPipeline:
             self.final_df = pd.concat(dfs_to_merge, ignore_index=True)
             
             # Add final enrichments
-            logger.info("Adding final statistical enrichments...")
-            
-            # Calculate aggregate statistics
-            self.final_df['avg_success_rate_by_rocket'] = self.final_df.groupby('rocket_name')['success'].transform('mean')
-            self.final_df['launches_by_rocket'] = self.final_df.groupby('rocket_name')['rocket_name'].transform('count')
-            self.final_df['avg_success_rate_by_pad'] = self.final_df.groupby('launchpad_name')['success'].transform('mean')
+            # Calculate aggregate statistics (with safe groupby)
+            try:
+                self.final_df['avg_success_rate_by_rocket'] = self.final_df.groupby('rocket_name')['success'].transform('mean')
+                self.final_df['launches_by_rocket'] = self.final_df.groupby('rocket_name')['rocket_name'].transform('count')
+                self.final_df['avg_success_rate_by_pad'] = self.final_df.groupby('launchpad_name')['success'].transform('mean')
+            except Exception as e:
+                logger.warning(f"Failed to calculate aggregate stats: {e}")
+                self.final_df['avg_success_rate_by_rocket'] = None
+                self.final_df['launches_by_rocket'] = None
+                self.final_df['avg_success_rate_by_pad'] = None
             
             # Add timestamp
             self.final_df['processed_at'] = pd.Timestamp.now()
             
-            logger.info(f"✅ Merged {len(self.final_df)} total records")
-            logger.info(f"Processing tier distribution:")
-            logger.info(f"{self.final_df['processing_tier'].value_counts().to_dict()}")
-            
             # Load to database
             destination = stage['destination']
             table_name = destination['table_name']
-            
-            logger.info(f"Loading {len(self.final_df)} rows to table: {table_name}")
             
             # Get database URL
             database_url = os.environ.get("AIVEN_PG_URI") or os.environ.get("DATABASE_URL")
@@ -502,16 +512,13 @@ class SpaceXPipeline:
             
             # Create engine
             engine = create_engine(database_url)
-            logger.info("Database connection established")
             
             # Drop table if exists
             with engine.connect() as conn:
-                logger.info(f"Dropping existing table if exists: {table_name}")
                 conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
                 conn.commit()
             
             # Load data
-            logger.info("Writing data to database...")
             self.final_df.to_sql(
                 table_name,
                 engine,
@@ -520,12 +527,10 @@ class SpaceXPipeline:
                 method='multi',
                 chunksize=1000
             )
-            logger.info(f"✅ {len(self.final_df)} rows inserted into {table_name}")
             
             # Create indexes
             if destination.get('create_indexes'):
                 index_columns = destination.get('index_columns', [])
-                logger.info(f"Creating indexes on: {index_columns}")
                 with engine.connect() as conn:
                     for col in index_columns:
                         if col in self.final_df.columns:
@@ -534,7 +539,6 @@ class SpaceXPipeline:
                                 conn.execute(text(
                                     f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({col})"
                                 ))
-                                logger.info(f"  ✅ Created index: {index_name}")
                             except Exception as e:
                                 logger.warning(f"  ⚠️ Failed to create index on {col}: {e}")
                     conn.commit()
@@ -543,13 +547,37 @@ class SpaceXPipeline:
             with engine.connect() as conn:
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
                 count = result.scalar()
-                logger.info(f"✅ Verified: {count} rows in {table_name}")
             
             engine.dispose()
             
+            logger.info(f"  ✓ Merged & loaded {len(self.final_df)} records to {table_name}")
+            
         except Exception as e:
-            logger.error(f"Failed to merge and load data: {e}")
+            logger.error(f"  ❌ Failed to merge and load data: {e}")
             raise
+
+
+    # ---------------------------------------------------------- #
+    # Safe fetch with fallback and non-fatal handling
+    def _safe_fetch(self, url_v5: str, url_v4: str = None, item_type: str = "resource"):
+        """
+        Attempts to fetch data from a v5 endpoint, falls back to v4,
+        and returns None instead of raising fatal errors.
+        """
+        try:
+            response = requests.get(url_v5, timeout=15)
+            if response.status_code == 404 and url_v4:
+                logger.warning(f"⚠️ {item_type} missing at v5, retrying v4...")
+                response = requests.get(url_v4, timeout=15)
+
+            response.raise_for_status()
+            return response.json()
+
+        except Exception as e:
+            logger.warning(f"⚠️ Skipping {item_type}: {e}")
+            return None
+    
+# ---------------------------------------------------------- #
 
 if __name__ == "__main__":
     exit(main())

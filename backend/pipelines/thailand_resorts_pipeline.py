@@ -202,6 +202,9 @@ class HotelPipeline:
             # Load into DataFrame
             self.df = pd.read_csv(csv_path)
             
+            # Limit to 200 rows
+            self.df = self.df.head(200)
+            
             logger.info(f"Loaded {len(self.df)} rows, {len(self.df.columns)} columns")
             logger.info(f"Columns: {self.df.columns.tolist()}")
             

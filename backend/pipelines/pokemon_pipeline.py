@@ -2,6 +2,8 @@
 # Pokémon Data Pipeline
 # Extract from PokeAPI, Transform with Branching, Load to PostgreSQL
 #
+# DATA LIMIT: 50 Pokemon (to conserve space and respect API)
+#
 # Pipeline Flow:
 # 1. Extract from PokeAPI
 # 2. Clean and Transform
@@ -171,51 +173,63 @@ class PokemonPipeline:
     def _stage_extract(self, stage: dict):
         source = stage['source']
         base_url = source['base_url']
-        limit = source['limit']
+        # LIMIT TO 50 POKEMON TO CONSERVE SPACE
+        limit = 50
         
-        logger.info(f"Fetching {limit} Pokémon from PokeAPI...")
+        logger.info(f"Fetching {limit} Pokémon from PokeAPI (limited for space conservation)...")
         
         try:
             pokemon_list = []
             
             # Fetch basic info for each Pokémon
             for i in range(1, limit + 1):
-                url = f"{base_url}/pokemon/{i}"
-                response = requests.get(url)
-                response.raise_for_status()
-                
-                pokemon_data = response.json()
-                
-                # Fetch species data for legendary status
-                species_url = pokemon_data['species']['url']
-                species_response = requests.get(species_url)
-                species_response.raise_for_status()
-                species_data = species_response.json()
-                
-                # Extract relevant fields
-                pokemon = {
-                    'pokemon_id': pokemon_data['id'],
-                    'name': pokemon_data['name'],
-                    'height': pokemon_data['height'],
-                    'weight': pokemon_data['weight'],
-                    'base_experience': pokemon_data['base_experience'],
-                    'hp': pokemon_data['stats'][0]['base_stat'],
-                    'attack': pokemon_data['stats'][1]['base_stat'],
-                    'defense': pokemon_data['stats'][2]['base_stat'],
-                    'special_attack': pokemon_data['stats'][3]['base_stat'],
-                    'special_defense': pokemon_data['stats'][4]['base_stat'],
-                    'speed': pokemon_data['stats'][5]['base_stat'],
-                    'type_primary': pokemon_data['types'][0]['type']['name'],
-                    'type_secondary': pokemon_data['types'][1]['type']['name'] if len(pokemon_data['types']) > 1 else None,
-                    'is_legendary': species_data['is_legendary'],
-                    'is_mythical': species_data['is_mythical'],
-                    'generation': species_data['generation']['name'],
-                }
-                
-                pokemon_list.append(pokemon)
-                
-                if i % 10 == 0:
-                    logger.info(f"  Fetched {i}/{limit} Pokémon...")
+                try:
+                    url = f"{base_url}/pokemon/{i}"
+                    response = requests.get(url, timeout=10)
+                    response.raise_for_status()
+                    
+                    pokemon_data = response.json()
+                    
+                    # Fetch species data for legendary status
+                    species_url = pokemon_data['species']['url']
+                    species_response = requests.get(species_url, timeout=10)
+                    species_response.raise_for_status()
+                    species_data = species_response.json()
+                    
+                    # Extract relevant fields with safe defaults
+                    pokemon = {
+                        'pokemon_id': pokemon_data.get('id'),
+                        'name': pokemon_data.get('name', 'unknown'),
+                        'height': pokemon_data.get('height', 0),
+                        'weight': pokemon_data.get('weight', 0),
+                        'base_experience': pokemon_data.get('base_experience', 0),
+                        'hp': pokemon_data['stats'][0]['base_stat'] if len(pokemon_data.get('stats', [])) > 0 else 0,
+                        'attack': pokemon_data['stats'][1]['base_stat'] if len(pokemon_data.get('stats', [])) > 1 else 0,
+                        'defense': pokemon_data['stats'][2]['base_stat'] if len(pokemon_data.get('stats', [])) > 2 else 0,
+                        'special_attack': pokemon_data['stats'][3]['base_stat'] if len(pokemon_data.get('stats', [])) > 3 else 0,
+                        'special_defense': pokemon_data['stats'][4]['base_stat'] if len(pokemon_data.get('stats', [])) > 4 else 0,
+                        'speed': pokemon_data['stats'][5]['base_stat'] if len(pokemon_data.get('stats', [])) > 5 else 0,
+                        'type_primary': pokemon_data['types'][0]['type']['name'] if len(pokemon_data.get('types', [])) > 0 else 'normal',
+                        'type_secondary': pokemon_data['types'][1]['type']['name'] if len(pokemon_data.get('types', [])) > 1 else None,
+                        'is_legendary': species_data.get('is_legendary', False),
+                        'is_mythical': species_data.get('is_mythical', False),
+                        'generation': species_data.get('generation', {}).get('name', 'unknown'),
+                    }
+                    
+                    pokemon_list.append(pokemon)
+                    
+                    if i % 10 == 0:
+                        logger.info(f"  Fetched {i}/{limit} Pokémon...")
+                    
+                    # Be respectful to the API - add small delay
+                    time.sleep(0.1)
+                    
+                except requests.RequestException as e:
+                    logger.warning(f"Failed to fetch Pokemon {i}: {e}")
+                    continue
+                except (KeyError, IndexError) as e:
+                    logger.warning(f"Data parsing error for Pokemon {i}: {e}")
+                    continue
             
             # Create DataFrame
             self.df = pd.DataFrame(pokemon_list)
@@ -223,9 +237,6 @@ class PokemonPipeline:
             logger.info(f"✅ Loaded {len(self.df)} Pokémon with {len(self.df.columns)} attributes")
             logger.info(f"Columns: {self.df.columns.tolist()}")
             
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch data from PokeAPI: {e}")
-            raise
         except Exception as e:
             logger.error(f"Failed to extract data: {e}")
             raise
@@ -304,6 +315,13 @@ class PokemonPipeline:
         logger.info("Processing legendary Pokémon...")
         
         try:
+            # Handle empty legendary dataframe
+            if len(self.legendary_df) == 0:
+                logger.warning("No legendary Pokemon in this dataset")
+                self.legendary_df['legendary_tier'] = pd.Series(dtype='object')
+                self.legendary_df['power_score'] = pd.Series(dtype='float64')
+                return
+            
             # Add special legendary tier
             self.legendary_df['legendary_tier'] = self.legendary_df.apply(lambda row:
                 'mythical' if row['is_mythical']
@@ -319,7 +337,8 @@ class PokemonPipeline:
             )
             
             logger.info(f"✅ Processed {len(self.legendary_df)} legendary Pokémon")
-            logger.info(f"Legendary tiers:\n{self.legendary_df['legendary_tier'].value_counts()}")
+            if len(self.legendary_df) > 0:
+                logger.info(f"Legendary tiers:\n{self.legendary_df['legendary_tier'].value_counts()}")
             
         except Exception as e:
             logger.error(f"Failed to process legendary data: {e}")
@@ -444,4 +463,4 @@ class PokemonPipeline:
             raise
 
 if __name__ == "__main__":
-    main()
+    exit(main())
