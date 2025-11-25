@@ -11,3 +11,5 @@ requests
 sqlalchemy
 psycopg2-binary
 kagglehub
+beautifulsoup4
+lxml

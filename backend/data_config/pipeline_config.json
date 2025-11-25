@@ -14,6 +14,34 @@
       "source_type": "file",
       "status": "active",
       "last_run": null,
+      "detailed_explanation": {
+        "overview": "This beginner-friendly pipeline downloads real hotel data from Kaggle, cleans it up, and stores it in a database. It's a simple, linear workflow that demonstrates the core ETL (Extract, Transform, Load) pattern.",
+        "what_you_learn": [
+          "How to download datasets from Kaggle using kagglehub",
+          "Basic data cleaning techniques (renaming columns, parsing values)",
+          "Loading data into PostgreSQL databases"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline connects to Kaggle and downloads a CSV file containing information about resorts in Thailand. This file includes resort names, locations, prices, ratings, and room details.",
+            "why_it_matters": "External data sources like Kaggle are common in real-world projects. Learning to programmatically download datasets saves time and enables automation.",
+            "technical_note": "Uses the kagglehub library to authenticate and download the dataset to your local cache."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Raw column names are messy (like 'Name of Resort' or 'Unnamed: 0'). We rename them to clean, database-friendly names (like 'resort_name' and 'id'). We also extract numeric values from text - for example, converting 'US$150' to the number 150.",
+            "why_it_matters": "Clean data is easier to work with. Standardized column names prevent errors, and extracting numbers from text enables mathematical operations like sorting by price.",
+            "technical_note": "Uses pandas string operations and regular expressions to parse formatted text into structured data."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "The cleaned data is sent to a PostgreSQL database table called 'hotel_listings'. Each row becomes a record in the database, ready to be queried by applications.",
+            "why_it_matters": "Databases provide permanent storage and fast querying. Once loaded, this data can power websites, analytics dashboards, or machine learning models.",
+            "technical_note": "Uses SQLAlchemy to connect to PostgreSQL and pandas.to_sql() to insert records efficiently."
+          }
+        ]
+      },
       "stages": [
         {
           "stage_id": "extract_kaggle_data",
@@ -168,6 +196,46 @@
       "source_type": "api",
       "status": "active",
       "last_run": null,
+      "detailed_explanation": {
+        "overview": "This intermediate pipeline fetches Pokemon data from a REST API and uses branching logic to process legendary and regular Pokemon differently. It demonstrates conditional workflows where data takes different paths based on its characteristics.",
+        "what_you_learn": [
+          "Making API calls and handling JSON responses",
+          "Implementing branching logic in data pipelines",
+          "Calculating derived metrics and enriching data"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline makes 151 API calls to PokeAPI, fetching data for each Generation 1 Pokemon. It retrieves stats (HP, attack, defense), types, and whether each Pokemon is legendary.",
+            "why_it_matters": "APIs are the backbone of modern data integration. Learning to handle rate limits, parse JSON, and aggregate API responses is essential for real-world pipelines.",
+            "technical_note": "Uses the requests library with error handling and combines data from both pokemon and species endpoints."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Data splits into two paths: legendary Pokemon get rarity scoring and special roles assigned, while regular Pokemon receive standard categorization. Each path has unique transformations suited to that Pokemon type.",
+            "why_it_matters": "Not all data should be processed the same way. Branching logic lets you apply different business rules to different data segments, improving accuracy and relevance.",
+            "technical_note": "Uses pandas boolean indexing to filter DataFrames and apply conditional transformations."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Both data paths merge back together, ensuring all Pokemon end up in the same database table with consistent columns. The final dataset includes both standard and enhanced attributes.",
+            "why_it_matters": "Merging branches correctly prevents data loss and maintains schema consistency. This pattern is common in quality control pipelines where items pass or fail checks.",
+            "technical_note": "Uses pandas concat() to combine DataFrames while preserving column alignment and handling missing values."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "The merged dataset receives final enrichments: a total power score calculated from all stats, combat role assignment (sweeper, tank, or balanced), and rarity classification based on base experience.",
+            "why_it_matters": "Derived metrics add analytical value without requiring additional API calls. These calculated fields enable sorting, filtering, and categorization for downstream applications.",
+            "technical_note": "Uses pandas apply() with custom functions to calculate aggregate scores and assign categorical labels."
+          },
+          {
+            "stage_number": 5,
+            "what_happens": "The complete Pokemon dataset with stats, types, branching attributes, and derived metrics loads into PostgreSQL as a searchable database table.",
+            "why_it_matters": "Database storage enables persistent queries, powers applications like Pokedex tools, and supports analytics dashboards showing stat distributions.",
+            "technical_note": "Uses pandas to_sql() with if_exists='replace' to refresh the entire dataset, ensuring data consistency."
+          }
+        ]
+      },
       "stages": [
         {
           "stage_id": "extract_pokeapi",
@@ -338,6 +406,46 @@
       "source_type": "api",
       "status": "active",
       "last_run": null,
+      "detailed_explanation": {
+        "overview": "This advanced pipeline combines data from three SpaceX API endpoints, validates data quality, and splits processing based on completeness. It shows enterprise patterns like multi-source joins and quality-based branching.",
+        "what_you_learn": [
+          "Joining data from multiple API sources",
+          "Implementing data quality checks and routing",
+          "Building reliability metrics from historical data"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "Three separate API calls fetch launch history, rocket specifications, and launchpad details. This raw data is stored in separate tables before processing.",
+            "why_it_matters": "Real systems rarely have all data in one place. Learning to coordinate multiple data sources is critical for building comprehensive analytics.",
+            "technical_note": "Uses concurrent API requests and relationship IDs to prepare for joins across launches, rockets, and launchpads."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Launch records are joined with rocket and launchpad information using ID relationships. Each launch now contains rocket name, launchpad location, and mission details in a single row.",
+            "why_it_matters": "Denormalized data (everything in one table) is faster to query and easier to analyze than scattered relational data.",
+            "technical_note": "Uses pandas merge operations with left joins to preserve all launches even if rocket/launchpad data is missing."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Records split based on data completeness. High-quality records (with success status, dates, and payloads) receive advanced analytics like reliability scoring. Incomplete records get basic processing only.",
+            "why_it_matters": "Data quality varies in production. Routing good data through advanced logic while safely handling incomplete data prevents errors and maximizes insight extraction.",
+            "technical_note": "Uses quality scoring logic with thresholds to determine routing, then applies different transformations per branch."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "Both quality branches rejoin into a unified dataset. The result includes all launches, with high-quality records having enhanced metrics and low-quality records having null values for advanced fields.",
+            "why_it_matters": "Downstream systems need consistent schemas. Merging quality branches with proper null handling ensures database compatibility.",
+            "technical_note": "Uses pandas concat with outer join semantics to combine branches without losing records."
+          },
+          {
+            "stage_number": 5,
+            "what_happens": "The enriched launch analytics dataset loads into PostgreSQL with indexed columns for fast querying. The table includes launch outcomes, rocket specifications, launchpad locations, and calculated reliability scores.",
+            "why_it_matters": "Indexed database storage enables complex queries like finding all successful Falcon 9 launches from specific pads, or calculating success rates by year and rocket type.",
+            "technical_note": "Uses SQLAlchemy with CREATE INDEX statements on key columns (rocket_name, launchpad_name, launch_year) for query optimization."
+          }
+        ]
+      },
       "stages": [
         {
           "stage_id": "extract_spacex_data",
@@ -490,6 +598,738 @@
         "database_table": "spacex_launch_analytics",
         "record_count": null
       }
+    },
+    {
+      "pipeline_id": "weather_analytics",
+      "pipeline_name": "Multi-Region Weather Analytics",
+      "description": "Fan-out/Fan-in pipeline fetching weather data from multiple regions in parallel, demonstrating concurrent processing",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This advanced pipeline demonstrates parallel processing by fetching weather data for three regions simultaneously, processing each independently, then combining results. This fan-out/fan-in pattern dramatically improves performance for multi-source workflows.",
+        "what_you_learn": [
+          "Parallel data extraction for improved performance",
+          "Region-specific transformations on partitioned data",
+          "Aggregating parallel results into unified datasets"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline fans out, making three simultaneous API calls to Open-Meteo for New York, London, and Tokyo. Each region's hourly weather data (temperature, humidity, wind) downloads in parallel.",
+            "why_it_matters": "Parallel extraction reduces total runtime dramatically. Instead of 3 sequential 2-second calls (6 seconds), parallel execution completes in roughly 2 seconds.",
+            "technical_note": "Uses concurrent HTTP requests or multi-threading to fetch data simultaneously without blocking."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Each region's data undergoes customized processing. North American temps convert to Fahrenheit, European data adds comfort indices, and Asian data gets typhoon season flags. Processing happens independently and simultaneously.",
+            "why_it_matters": "Different regions have different requirements. Parallel processing with region-specific logic handles localization efficiently while maintaining performance.",
+            "technical_note": "Uses separate transformation functions per region, executed in parallel threads or processes."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Data from Asia (Tokyo) is fetched in parallel with the other regions, completing the fan-out pattern. Tokyo's weather data includes the same hourly metrics as the other cities.",
+            "why_it_matters": "Completing all parallel tasks simultaneously maximizes performance gains. The pipeline doesn't wait for sequential execution.",
+            "technical_note": "Runs in the same ThreadPoolExecutor as stages 1-2, all completing around the same time."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "The fourth parallel fetch completes the data extraction phase. This marks the end of the fan-out portion of the pipeline.",
+            "why_it_matters": "All source data is now available for the fan-in merge operation that follows.",
+            "technical_note": "Final parallel thread completes, triggering the merge stage."
+          },
+          {
+            "stage_number": 5,
+            "what_happens": "All regional datasets merge into one unified table (fan-in). The combined dataset includes a region column to distinguish data sources while maintaining a consistent schema.",
+            "why_it_matters": "Aggregating parallel results is essential for holistic analysis. Combined data enables cross-region comparisons and global trend detection.",
+            "technical_note": "Uses pandas concat with region identifiers to stack DataFrames while preserving data lineage."
+          },
+          {
+            "stage_number": 6,
+            "what_happens": "The merged data undergoes analytics transformations: daily aggregates are calculated, weather conditions are classified (hot, cold, rainy, moderate), and comfort indices are computed.",
+            "why_it_matters": "Raw hourly data is too granular for many use cases. Daily aggregates and classifications make the data more actionable for decision-making.",
+            "technical_note": "Uses pandas groupby() for aggregations and apply() for conditional classifications based on temperature and precipitation thresholds."
+          },
+          {
+            "stage_number": 7,
+            "what_happens": "The processed multi-region weather analytics loads into PostgreSQL. Indexes are created on region, city, and date columns for fast filtering and time-series queries.",
+            "why_it_matters": "Database storage enables time-series analysis, trend detection across regions, and powers weather comparison dashboards and APIs.",
+            "technical_note": "Uses SQLAlchemy with indexed columns to optimize queries like 'show me temperature trends for all regions over the last month'."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "initiate_parallel_fetch",
+          "stage_number": 1,
+          "stage_name": "Initialize Parallel Extraction",
+          "stage_type": "data_ingestion",
+          "description": "Set up parallel fetch configuration for multiple geographic regions",
+          "source": {
+            "type": "api",
+            "base_url": "https://api.open-meteo.com/v1/forecast",
+            "regions": [
+              {
+                "name": "North America",
+                "city": "New York",
+                "latitude": 40.7128,
+                "longitude": -74.0060
+              },
+              {
+                "name": "Europe",
+                "city": "London",
+                "latitude": 51.5074,
+                "longitude": -0.1278
+              },
+              {
+                "name": "Asia",
+                "city": "Tokyo",
+                "latitude": 35.6762,
+                "longitude": 139.6503
+              }
+            ],
+            "parameters": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m"
+          },
+          "output": {
+            "format": "configuration",
+            "parallel_tasks": 3
+          },
+          "code_snippet": "import requests\nimport pandas as pd\nfrom concurrent.futures import ThreadPoolExecutor\n\n# Configuration for parallel fetching\nregions = [\n    {'name': 'North America', 'city': 'New York', 'lat': 40.7128, 'lon': -74.0060},\n    {'name': 'Europe', 'city': 'London', 'lat': 51.5074, 'lon': -0.1278},\n    {'name': 'Asia', 'city': 'Tokyo', 'lat': 35.6762, 'lon': 139.6503}\n]",
+          "execution_time_ms": null,
+          "notes": "Prepares configuration for concurrent API requests to multiple regions"
+        },
+        {
+          "stage_id": "fetch_north_america",
+          "stage_number": 2,
+          "stage_name": "Fetch North America Data",
+          "stage_type": "data_ingestion",
+          "description": "Extract weather data for North America region (New York) in parallel",
+          "parallel_path": "north_america",
+          "output": {
+            "format": "dataframe",
+            "region": "North America"
+          },
+          "code_snippet": "# Parallel fetch for North America\nurl = f'https://api.open-meteo.com/v1/forecast?latitude=40.7128&longitude=-74.0060&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&past_days=92'\nresponse = requests.get(url)\ndata = response.json()\ndf_na = pd.DataFrame(data['hourly'])\ndf_na['region'] = 'North America'\ndf_na['city'] = 'New York'",
+          "execution_time_ms": null,
+          "notes": "Runs concurrently with other region fetches using ThreadPoolExecutor"
+        },
+        {
+          "stage_id": "fetch_europe",
+          "stage_number": 3,
+          "stage_name": "Fetch Europe Data",
+          "stage_type": "data_ingestion",
+          "description": "Extract weather data for Europe region (London) in parallel",
+          "parallel_path": "europe",
+          "output": {
+            "format": "dataframe",
+            "region": "Europe"
+          },
+          "code_snippet": "# Parallel fetch for Europe\nurl = f'https://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&past_days=92'\nresponse = requests.get(url)\ndata = response.json()\ndf_eu = pd.DataFrame(data['hourly'])\ndf_eu['region'] = 'Europe'\ndf_eu['city'] = 'London'",
+          "execution_time_ms": null,
+          "notes": "Runs concurrently with other region fetches using ThreadPoolExecutor"
+        },
+        {
+          "stage_id": "fetch_asia",
+          "stage_number": 4,
+          "stage_name": "Fetch Asia Data",
+          "stage_type": "data_ingestion",
+          "description": "Extract weather data for Asia region (Tokyo) in parallel",
+          "parallel_path": "asia",
+          "output": {
+            "format": "dataframe",
+            "region": "Asia"
+          },
+          "code_snippet": "# Parallel fetch for Asia\nurl = f'https://api.open-meteo.com/v1/forecast?latitude=35.6762&longitude=139.6503&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&past_days=92'\nresponse = requests.get(url)\ndata = response.json()\ndf_asia = pd.DataFrame(data['hourly'])\ndf_asia['region'] = 'Asia'\ndf_asia['city'] = 'Tokyo'",
+          "execution_time_ms": null,
+          "notes": "Runs concurrently with other region fetches using ThreadPoolExecutor"
+        },
+        {
+          "stage_id": "merge_regional_data",
+          "stage_number": 5,
+          "stage_name": "Merge Regional Data (Fan-in)",
+          "stage_type": "data_transformation",
+          "description": "Combine all regional weather data into unified dataset",
+          "transformations": [
+            {
+              "operation": "concatenate_dataframes",
+              "description": "Merge North America, Europe, and Asia datasets"
+            },
+            {
+              "operation": "standardize_timestamps",
+              "description": "Convert all timestamps to UTC and parse datetime"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "total_regions": 3
+          },
+          "code_snippet": "# Fan-in: Merge all regional data\nmerged_df = pd.concat([df_na, df_eu, df_asia], ignore_index=True)\n\n# Standardize timestamps\nmerged_df['time'] = pd.to_datetime(merged_df['time'])\nmerged_df['date'] = merged_df['time'].dt.date\nmerged_df['hour'] = merged_df['time'].dt.hour",
+          "execution_time_ms": null,
+          "notes": "Fan-in point where parallel streams converge into single dataset"
+        },
+        {
+          "stage_id": "transform_weather_data",
+          "stage_number": 6,
+          "stage_name": "Calculate Analytics",
+          "stage_type": "data_transformation",
+          "description": "Calculate aggregate statistics and comparative metrics across regions",
+          "transformations": [
+            {
+              "operation": "calculate_daily_aggregates",
+              "description": "Compute daily min, max, average temperatures per region"
+            },
+            {
+              "operation": "weather_classification",
+              "description": "Classify weather conditions (hot, moderate, cold, rainy)"
+            },
+            {
+              "operation": "regional_comparisons",
+              "description": "Calculate temperature differentials between regions"
+            }
+          ],
+          "code_snippet": "# Calculate daily aggregates\ndaily_stats = merged_df.groupby(['region', 'city', 'date']).agg({\n    'temperature_2m': ['min', 'max', 'mean'],\n    'precipitation': 'sum',\n    'wind_speed_10m': 'mean',\n    'relative_humidity_2m': 'mean'\n}).reset_index()\n\n# Weather classification\ndf['weather_type'] = df.apply(lambda row:\n    'rainy' if row['precipitation'] > 5\n    else 'hot' if row['temperature_2m'] > 25\n    else 'cold' if row['temperature_2m'] < 5\n    else 'moderate',\n    axis=1\n)",
+          "execution_time_ms": null,
+          "notes": "Enriches merged dataset with calculated metrics for analysis"
+        },
+        {
+          "stage_id": "load_weather_data",
+          "stage_number": 7,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load processed multi-region weather analytics to database",
+          "destination": {
+            "table_name": "weather_analytics",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "region",
+              "city",
+              "time",
+              "date"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine\nimport os\n\n# Create engine\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS weather_analytics CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('weather_analytics', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['region', 'city', 'date']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_weather_{col} ON weather_analytics({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Final dataset contains weather data from all regions with analytics"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "weather_analytics",
+        "record_count": null
+      }
+    },
+    {
+      "pipeline_id": "hackernews_scraper",
+      "pipeline_name": "Hacker News Web Scraper",
+      "description": "Web scraping pipeline extracting front page posts from Hacker News, demonstrating data collection from public websites",
+      "source_type": "web_scraping",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This beginner web scraping pipeline extracts article data directly from HTML pages. It demonstrates how to gather data from websites that don't provide APIs, parsing structure from raw HTML.",
+        "what_you_learn": [
+          "HTML parsing and web scraping with BeautifulSoup",
+          "Ethical scraping practices (delays, user agents)",
+          "Extracting and structuring unformatted web data"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline requests 7 pages from Hacker News, extracting titles, URLs, points, authors, and comment counts from the HTML structure. It includes polite delays between requests to avoid overloading the server.",
+            "why_it_matters": "Many valuable data sources lack APIs. Web scraping unlocks this data, but must be done responsibly to respect server resources and terms of service.",
+            "technical_note": "Uses BeautifulSoup to parse HTML and find elements by class name, with time.sleep() for rate limiting."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Raw scraped data gets cleaned and enriched. The pipeline calculates engagement scores (points + comments), categorizes popularity (viral, popular, moderate, new), and standardizes text fields.",
+            "why_it_matters": "Scraped data is often messy with inconsistent formats. Transformations create structured, analysis-ready datasets from unstructured HTML.",
+            "technical_note": "Uses string parsing, numerical calculations, and conditional categorization to derive meaningful metrics."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Cleaned article data loads into PostgreSQL. Each post becomes a searchable database record with metadata like engagement scores and popularity categories.",
+            "why_it_matters": "Storing scraped data enables trend analysis over time, automated alerts for trending topics, and integration with other data sources.",
+            "technical_note": "Uses pandas to_sql() with if_exists='replace' to refresh the dataset with latest trending posts."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "scrape_hackernews",
+          "stage_number": 1,
+          "stage_name": "Scrape Front Page",
+          "stage_type": "data_ingestion",
+          "description": "Extract posts from Hacker News front page using BeautifulSoup web scraping",
+          "source": {
+            "type": "web_scraping",
+            "base_url": "https://news.ycombinator.com",
+            "method": "requests + BeautifulSoup",
+            "pages": 7
+          },
+          "output": {
+            "format": "list",
+            "fields": [
+              "story_id",
+              "title",
+              "url",
+              "points",
+              "author",
+              "age",
+              "comments",
+              "source",
+              "scraped_at"
+            ]
+          },
+          "code_snippet": "import requests\nfrom bs4 import BeautifulSoup\n\nposts = []\nfor page in range(1, 8):\n    url = f'https://news.ycombinator.com/?p={page}'\n    response = requests.get(url)\n    soup = BeautifulSoup(response.text, 'html.parser')\n    \n    story_rows = soup.select('tr.athing')\n    for story in story_rows:\n        title = story.select_one('.titleline > a').text\n        url_link = story.select_one('.titleline > a')['href']\n        # Extract points, author, comments from subtext...\n        posts.append({...})",
+          "execution_time_ms": null,
+          "notes": "Scrapes ~200 posts from Hacker News with polite delay between requests"
+        },
+        {
+          "stage_id": "transform_posts",
+          "stage_number": 2,
+          "stage_name": "Transform & Enrich",
+          "stage_type": "data_transformation",
+          "description": "Clean URLs, calculate engagement metrics, and categorize post popularity",
+          "transformations": [
+            {
+              "operation": "calculate_engagement",
+              "description": "Sum points and comments to create engagement_score metric"
+            },
+            {
+              "operation": "categorize_popularity",
+              "description": "Classify posts as viral (100+), popular (50+), moderate (20+), or new (<20)"
+            },
+            {
+              "operation": "clean_urls",
+              "description": "Convert relative URLs to absolute, flag external vs internal links"
+            },
+            {
+              "operation": "limit_rows",
+              "description": "Limit to 200 posts for consistent dataset size"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "story_id",
+              "title",
+              "url",
+              "points",
+              "author",
+              "age",
+              "comments",
+              "source",
+              "scraped_at",
+              "engagement_score",
+              "popularity",
+              "is_external"
+            ]
+          },
+          "code_snippet": "df = pd.DataFrame(posts).head(200)\n\n# Calculate engagement\ndf['engagement_score'] = df['points'] + df['comments']\n\n# Categorize popularity\ndef categorize(row):\n    score = row['engagement_score']\n    if score >= 100: return 'viral'\n    elif score >= 50: return 'popular'\n    elif score >= 20: return 'moderate'\n    else: return 'new'\n\ndf['popularity'] = df.apply(categorize, axis=1)\ndf['is_external'] = ~df['url'].str.contains('news.ycombinator.com')",
+          "execution_time_ms": null,
+          "notes": "Enriches raw scraped data with computed metrics"
+        },
+        {
+          "stage_id": "load_posts",
+          "stage_number": 3,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load scraped and transformed Hacker News posts to database",
+          "destination": {
+            "table_name": "hackernews_posts",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "story_id",
+              "author",
+              "popularity",
+              "scraped_at"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS hackernews_posts CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('hackernews_posts', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['story_id', 'author', 'popularity', 'scraped_at']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_hn_{col} ON hackernews_posts({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Final dataset contains web-scraped Hacker News posts with engagement metrics"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "hackernews_posts",
+        "record_count": null
+      }
+    },
+    {
+      "pipeline_id": "network_traffic",
+      "pipeline_name": "Network Traffic Anomaly Detection",
+      "description": "Intermediate security analytics pipeline analyzing network traffic patterns, detecting anomalies, and calculating risk scores",
+      "source_type": "file",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This intermediate security-focused pipeline analyzes network traffic patterns to detect potential threats. It demonstrates feature engineering, risk scoring algorithms, and cybersecurity analytics workflows.",
+        "what_you_learn": [
+          "Working with security datasets from Kaggle",
+          "Building risk scoring systems with multiple factors",
+          "Identifying anomalies using pattern analysis"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline downloads a network traffic dataset from Kaggle containing packet-level data with features like packet size, port numbers, protocols, and spectral characteristics.",
+            "why_it_matters": "Kaggle hosts thousands of real-world datasets. Learning kagglehub integration enables access to datasets for machine learning and analytics projects.",
+            "technical_note": "Uses kagglehub library to authenticate and download CSV data to local cache for processing."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Traffic patterns are analyzed: protocols are classified, suspicious ports are flagged, SYN flood attacks are detected, and spectral entropy identifies repetitive (potentially malicious) patterns.",
+            "why_it_matters": "Security threats have signatures. Pattern analysis helps identify port scans, DDoS attacks, and unusual traffic that may indicate breaches.",
+            "technical_note": "Uses pandas for protocol categorization, port matching against threat databases, and statistical analysis of entropy."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Each traffic record receives a risk score (0-100) based on multiple factors: labeled threats, suspicious ports, high volume, low entropy, and SYN floods. Scores determine threat levels (low, medium, high, critical).",
+            "why_it_matters": "Security teams can't investigate everything. Risk scoring prioritizes alerts, focusing attention on the most dangerous traffic first.",
+            "technical_note": "Uses weighted scoring algorithm combining binary flags and statistical thresholds to calculate composite risk."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "Analyzed traffic with risk scores and threat classifications loads into PostgreSQL, creating a searchable security database for incident response and trend analysis.",
+            "why_it_matters": "Historical security data enables threat hunting, compliance reporting, and training anomaly detection models for automated security.",
+            "technical_note": "Uses SQLAlchemy with bulk insert operations to efficiently load analyzed security data."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "extract_kaggle_traffic",
+          "stage_number": 1,
+          "stage_name": "Extract Network Traffic Data",
+          "stage_type": "data_ingestion",
+          "description": "Download network traffic dataset from Kaggle using KaggleHub",
+          "source": {
+            "type": "kagglehub",
+            "dataset_id": "ziya07/network-traffic-anomaly-detection-dataset",
+            "file_format": "csv"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "Timestamp",
+              "Source IP",
+              "Destination IP",
+              "Source Port",
+              "Destination Port",
+              "Protocol",
+              "Packet Length",
+              "Payload Data"
+            ]
+          },
+          "code_snippet": "import kagglehub\nfrom kagglehub import KaggleDatasetAdapter\n\n# Download dataset\ndf = kagglehub.load_dataset(\n    KaggleDatasetAdapter.PANDAS,\n    'ziya07/network-traffic-anomaly-detection-dataset',\n    '',\n)\n\n# Limit to 200 records\ndf = df.head(200)",
+          "execution_time_ms": null,
+          "notes": "Network traffic data with packet-level details for security analysis"
+        },
+        {
+          "stage_id": "analyze_traffic_patterns",
+          "stage_number": 2,
+          "stage_name": "Analyze Traffic Patterns",
+          "stage_type": "data_transformation",
+          "description": "Classify protocols, detect suspicious ports, analyze traffic direction and packet characteristics",
+          "transformations": [
+            {
+              "operation": "classify_protocol",
+              "description": "Categorize network protocols (TCP, UDP, ICMP, HTTP, Other)"
+            },
+            {
+              "operation": "categorize_packet_size",
+              "description": "Classify packets as tiny/small/medium/large based on length"
+            },
+            {
+              "operation": "detect_suspicious_ports",
+              "description": "Flag traffic using common attack vector ports (Telnet, RPC, SMB, RDP, VNC)"
+            },
+            {
+              "operation": "analyze_traffic_direction",
+              "description": "Determine if traffic is internal, inbound, or outbound based on IP addresses"
+            },
+            {
+              "operation": "calculate_traffic_intensity",
+              "description": "Rolling average of packet sizes to detect traffic bursts"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "protocol_type",
+              "packet_category",
+              "uses_suspicious_port",
+              "traffic_direction",
+              "traffic_intensity",
+              "payload_size",
+              "has_payload"
+            ]
+          },
+          "code_snippet": "# Classify protocol\ndf['protocol_type'] = df['Protocol'].apply(classify_protocol)\n\n# Categorize packet size\ndf['packet_category'] = pd.cut(df['Packet Length'], \n    bins=[0, 100, 500, 1500, float('inf')],\n    labels=['tiny', 'small', 'medium', 'large'])\n\n# Detect suspicious ports\nsuspicious_ports = [23, 135, 139, 445, 1433, 3389, 5900]\ndf['uses_suspicious_port'] = (\n    df['Source Port'].isin(suspicious_ports) | \n    df['Destination Port'].isin(suspicious_ports)\n)\n\n# Analyze traffic direction\ndf['traffic_direction'] = df.apply(\n    lambda row: 'internal' if is_internal(row['Source IP']) and is_internal(row['Destination IP'])\n    else 'outbound' if is_internal(row['Source IP'])\n    else 'inbound', axis=1\n)",
+          "execution_time_ms": null,
+          "notes": "Deep packet inspection and traffic pattern analysis for security insights"
+        },
+        {
+          "stage_id": "calculate_risk_scores",
+          "stage_number": 3,
+          "stage_name": "Calculate Risk Scores",
+          "stage_type": "data_transformation",
+          "description": "Assign risk points based on security factors and categorize threat levels",
+          "transformations": [
+            {
+              "operation": "risk_scoring",
+              "description": "Calculate composite risk score (0-100) based on suspicious indicators",
+              "factors": [
+                "Suspicious port usage (+30 points)",
+                "Unusual packet sizes (+15-20 points)",
+                "High traffic intensity (+25 points)",
+                "Inbound unknown traffic (+15 points)",
+                "No payload/reconnaissance (+10 points)"
+              ]
+            },
+            {
+              "operation": "categorize_threat",
+              "description": "Classify threat level as low/medium/high/critical based on risk score"
+            },
+            {
+              "operation": "calculate_anomaly_confidence",
+              "description": "Percentage confidence (0-100%) that traffic is anomalous"
+            },
+            {
+              "operation": "flag_investigation",
+              "description": "Mark high/critical threats for security team review"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "risk_score",
+              "threat_level",
+              "anomaly_confidence",
+              "requires_investigation",
+              "processed_at"
+            ]
+          },
+          "code_snippet": "# Initialize risk score\ndf['risk_score'] = 0\n\n# Add risk points\ndf.loc[df['uses_suspicious_port'], 'risk_score'] += 30\ndf.loc[df['Packet Length'] < 50, 'risk_score'] += 20\ndf.loc[df['Packet Length'] > 1400, 'risk_score'] += 15\n\n# High traffic intensity\nintensity_threshold = df['traffic_intensity'].quantile(0.9)\ndf.loc[df['traffic_intensity'] > intensity_threshold, 'risk_score'] += 25\n\n# Categorize threat level\ndf['threat_level'] = pd.cut(df['risk_score'],\n    bins=[-1, 20, 40, 60, 100],\n    labels=['low', 'medium', 'high', 'critical'])\n\n# Anomaly confidence\ndf['anomaly_confidence'] = (df['risk_score'] / df['risk_score'].max() * 100).round(2)\n\n# Flag for investigation\ndf['requires_investigation'] = df['threat_level'].isin(['high', 'critical'])",
+          "execution_time_ms": null,
+          "notes": "Multi-factor security risk assessment with actionable threat intelligence"
+        },
+        {
+          "stage_id": "load_traffic_data",
+          "stage_number": 4,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load analyzed network traffic with security metrics to database",
+          "destination": {
+            "table_name": "network_traffic_analysis",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "threat_level",
+              "requires_investigation",
+              "protocol_type",
+              "traffic_direction"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS network_traffic_analysis CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('network_traffic_analysis', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['threat_level', 'requires_investigation', 'protocol_type', 'traffic_direction']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_traffic_{col} ON network_traffic_analysis({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Security-focused dataset with risk scores, threat categorization, and investigation flags"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "network_traffic_analysis",
+        "record_count": null
+      }
+    },
+    {
+      "pipeline_id": "stock_market",
+      "pipeline_name": "Stock Market Time-Series Analytics",
+      "description": "Time-series pipeline analyzing stock prices with technical indicators, moving averages, and trend detection",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This intermediate time-series pipeline demonstrates temporal data processing by analyzing stock market data. It calculates technical indicators, detects trends, and shows how to handle rolling window computations for financial analytics.",
+        "what_you_learn": [
+          "Processing time-series data with temporal ordering",
+          "Calculating technical indicators (RSI, moving averages, volatility)",
+          "Implementing rolling window computations and trend detection"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline fetches 90 days of historical stock data for Apple, Google, and Microsoft from Yahoo Finance API. Each record contains OHLC prices (open, high, low, close) and trading volume.",
+            "why_it_matters": "Time-series data requires proper temporal ordering. Understanding how to extract and structure financial data is essential for analytics, trading systems, and market research.",
+            "technical_note": "Uses Yahoo Finance API with Unix timestamp parameters to fetch daily OHLC data, then converts to pandas DataFrame with datetime indexing."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Technical indicators are calculated: 7-day and 20-day moving averages, RSI (Relative Strength Index), daily returns, volatility, and momentum. These use rolling window calculations on the price data.",
+            "why_it_matters": "Technical indicators reveal trends and patterns not visible in raw prices. Moving averages smooth volatility, RSI identifies overbought/oversold conditions, and momentum shows price strength.",
+            "technical_note": "Uses pandas rolling() for window calculations, pct_change() for returns, and custom RSI formula with gain/loss ratios over 14-day periods."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Market context is added: volume categories (high/normal/low), trend classification (bullish/bearish/neutral), RSI signals (overbought/oversold), volatility levels, and day types (gain/loss/strong movements).",
+            "why_it_matters": "Classifications make raw indicators actionable. Traders use these signals for decision-making, and categorization enables filtering and alerting in analytics dashboards.",
+            "technical_note": "Uses conditional logic and quantile-based thresholds to classify continuous metrics into categorical signals."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "The enriched stock data loads into PostgreSQL with specialized indexes on timestamp, symbol, and date columns. This optimizes time-series queries like 'show AAPL prices for last 30 days' or 'find all bearish days'.",
+            "why_it_matters": "Time-series databases need proper indexing for performance. Queries often filter by time ranges and symbols, so composite indexes on (symbol, date) dramatically speed up analytics.",
+            "technical_note": "Uses CREATE INDEX on timestamp and composite index on (symbol, date) to optimize temporal queries and enable efficient stock-specific filtering."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "extract_stock_data",
+          "stage_number": 1,
+          "stage_name": "Extract Stock Prices",
+          "stage_type": "data_ingestion",
+          "description": "Fetch 90 days of OHLC stock data for AAPL, GOOGL, MSFT from Yahoo Finance API",
+          "source": {
+            "type": "api",
+            "base_url": "https://query1.finance.yahoo.com/v8/finance/chart",
+            "symbols": ["AAPL", "GOOGL", "MSFT"],
+            "timeframe": "90 days",
+            "interval": "1d"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "timestamp",
+              "symbol",
+              "open",
+              "high",
+              "low",
+              "close",
+              "volume"
+            ]
+          },
+          "code_snippet": "import requests\nimport pandas as pd\nfrom datetime import datetime, timedelta\n\nend_date = datetime.now()\nstart_date = end_date - timedelta(days=90)\n\nfor symbol in ['AAPL', 'GOOGL', 'MSFT']:\n    url = f'https://query1.finance.yahoo.com/v8/finance/chart/{symbol}'\n    params = {\n        'period1': int(start_date.timestamp()),\n        'period2': int(end_date.timestamp()),\n        'interval': '1d'\n    }\n    response = requests.get(url, params=params)\n    data = response.json()",
+          "execution_time_ms": null,
+          "notes": "Fetches daily OHLC (Open, High, Low, Close) prices with volume for time-series analysis"
+        },
+        {
+          "stage_id": "calculate_indicators",
+          "stage_number": 2,
+          "stage_name": "Calculate Technical Indicators",
+          "stage_type": "data_transformation",
+          "description": "Compute moving averages, RSI, volatility, and momentum using rolling windows",
+          "transformations": [
+            {
+              "operation": "daily_returns",
+              "description": "Calculate percentage change from previous day's close"
+            },
+            {
+              "operation": "moving_averages",
+              "description": "Compute 7-day and 20-day simple moving averages"
+            },
+            {
+              "operation": "rsi_calculation",
+              "description": "Calculate 14-day Relative Strength Index (0-100 scale)"
+            },
+            {
+              "operation": "volatility_measure",
+              "description": "Compute 7-day rolling standard deviation of returns"
+            },
+            {
+              "operation": "momentum_indicator",
+              "description": "Calculate price momentum relative to 7-day MA"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "daily_return",
+              "ma_7",
+              "ma_20",
+              "volatility_7d",
+              "rsi",
+              "momentum"
+            ]
+          },
+          "code_snippet": "# Calculate for each stock\ndf = df.sort_values(['symbol', 'timestamp'])\n\n# Daily returns\ndf['daily_return'] = df.groupby('symbol')['close'].pct_change() * 100\n\n# Moving averages\ndf['ma_7'] = df.groupby('symbol')['close'].rolling(7, min_periods=1).mean().reset_index(0, drop=True)\ndf['ma_20'] = df.groupby('symbol')['close'].rolling(20, min_periods=1).mean().reset_index(0, drop=True)\n\n# RSI calculation\ndelta = df.groupby('symbol')['close'].diff()\ngain = delta.where(delta > 0, 0).rolling(14, min_periods=1).mean()\nloss = -delta.where(delta < 0, 0).rolling(14, min_periods=1).mean()\nrs = gain / loss\ndf['rsi'] = 100 - (100 / (1 + rs))",
+          "execution_time_ms": null,
+          "notes": "Technical indicators use rolling windows - proper sorting by symbol and time is critical"
+        },
+        {
+          "stage_id": "enrich_market_context",
+          "stage_number": 3,
+          "stage_name": "Add Market Context",
+          "stage_type": "data_transformation",
+          "description": "Classify trends, volume patterns, RSI signals, and volatility levels",
+          "transformations": [
+            {
+              "operation": "volume_classification",
+              "description": "Categorize trading volume as high/normal/low relative to stock average"
+            },
+            {
+              "operation": "trend_detection",
+              "description": "Classify as bullish/bearish/neutral based on MA relationships"
+            },
+            {
+              "operation": "rsi_signals",
+              "description": "Flag overbought (>70) and oversold (<30) conditions"
+            },
+            {
+              "operation": "volatility_buckets",
+              "description": "Classify volatility as high/medium/low using quantiles"
+            },
+            {
+              "operation": "day_type_classification",
+              "description": "Categorize trading days by price change magnitude"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "volume_category",
+              "trend",
+              "rsi_signal",
+              "volatility_level",
+              "price_change",
+              "price_change_pct",
+              "day_type"
+            ]
+          },
+          "code_snippet": "# Trend classification\ndf['trend'] = df.apply(\n    lambda row: 'bullish' if row['close'] > row['ma_20'] and row['ma_7'] > row['ma_20']\n    else 'bearish' if row['close'] < row['ma_20'] and row['ma_7'] < row['ma_20']\n    else 'neutral',\n    axis=1\n)\n\n# RSI signals\ndf['rsi_signal'] = df['rsi'].apply(\n    lambda x: 'overbought' if x > 70\n    else 'oversold' if x < 30\n    else 'neutral'\n)\n\n# Day type\ndf['day_type'] = df['price_change_pct'].apply(\n    lambda x: 'strong_gain' if x > 2 else 'gain' if x > 0 else 'strong_loss' if x < -2 else 'loss'\n)",
+          "execution_time_ms": null,
+          "notes": "Converts continuous metrics into actionable categorical signals for filtering and alerts"
+        },
+        {
+          "stage_id": "load_stock_analytics",
+          "stage_number": 4,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load time-series stock data with specialized temporal indexes",
+          "destination": {
+            "table_name": "stock_market_analytics",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "timestamp",
+              "symbol",
+              "date",
+              "symbol, date (composite)"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS stock_market_analytics CASCADE'))\n    conn.commit()\n\n# Load data\ndf.to_sql('stock_market_analytics', engine, if_exists='replace', index=False)\n\n# Create time-series optimized indexes\nwith engine.connect() as conn:\n    conn.execute(text('CREATE INDEX idx_stock_timestamp ON stock_market_analytics(timestamp)'))\n    conn.execute(text('CREATE INDEX idx_stock_symbol ON stock_market_analytics(symbol)'))\n    conn.execute(text('CREATE INDEX idx_stock_date ON stock_market_analytics(date)'))\n    conn.execute(text('CREATE INDEX idx_stock_symbol_date ON stock_market_analytics(symbol, date)'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Composite index on (symbol, date) dramatically speeds up stock-specific time-range queries"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "stock_market_analytics",
+        "record_count": null
+      }
     }
   ],
   "visualization_settings": {
@@ -514,6 +1354,10 @@
       "data_loading": {
         "color": "#8B5CF6",
         "icon": "database"
+      },
+      "parallel_processing": {
+        "color": "#06B6D4",
+        "icon": "parallel"
       }
     },
     "edge_styling": {

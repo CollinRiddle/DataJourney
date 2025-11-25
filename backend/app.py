@@ -36,9 +36,12 @@ from typing import cast
 #     app.run(debug=True)
 
 from flask import Flask, jsonify, send_from_directory
+from flask_cors import CORS
 import os
 import json
 from typing import cast
+import pandas as pd
+import numpy as np
 
 # Get the absolute path to the backend directory
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -46,6 +49,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 static_folder = os.path.join(os.path.dirname(basedir), 'frontend', 'dist')
 
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
+CORS(app)  # Enable CORS for all routes
 
 @app.route('/')
 def serve_react():
@@ -97,6 +101,71 @@ def get_pipelines():
         return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/pipelines/<pipeline_id>/data')
+def get_pipeline_data(pipeline_id):
+    """API route to fetch actual data from PostgreSQL for a specific pipeline"""
+    from utils.connection import get_connection
+    
+    # Map pipeline IDs to their database table names
+    pipeline_table_map = {
+        'thailand_hotels': 'hotel_listings',
+        'pokemon_data': 'pokemon_data',
+        'spacex_launches': 'spacex_launch_analytics',
+        'weather_analytics': 'weather_analytics',
+        'hackernews_scraper': 'hackernews_posts',
+        'network_traffic': 'network_traffic_analysis',
+        'stock_market': 'stock_market_analytics'
+    }
+    
+    table_name = pipeline_table_map.get(pipeline_id)
+    if not table_name:
+        return jsonify({"error": f"Unknown pipeline_id: {pipeline_id}"}), 404
+    
+    try:
+        # Connect to PostgreSQL and fetch data
+        conn = get_connection()
+        query = f"SELECT * FROM {table_name} LIMIT 200"
+        df = pd.read_sql(query, conn)
+        conn.close()
+        
+        # Normalize values to be JSON-safe
+        # - Replace NaN/NaT with None (becomes null in JSON)
+        # - Replace +/-inf with None
+        # Use both replace and where to cover numeric and datetime types robustly
+        df = df.replace({np.nan: None, np.inf: None, -np.inf: None})
+        df = df.where(pd.notnull(df), None)
+        
+        # Convert DataFrame to list of dictionaries
+        data = df.to_dict('records')
+        
+        response = jsonify({
+            "pipeline_id": pipeline_id,
+            "table_name": table_name,
+            "row_count": len(data),
+            "data": data
+        })
+        # Prevent browser/proxy caching so re-runs are visible immediately
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
+    
+    except Exception as e:
+        error_msg = str(e)
+        # Check if table doesn't exist
+        if 'does not exist' in error_msg.lower():
+            return jsonify({
+                "error": f"Table '{table_name}' does not exist. Please run the pipeline first.",
+                "pipeline_id": pipeline_id,
+                "table_name": table_name,
+                "data": []
+            }), 404
+        else:
+            return jsonify({
+                "error": f"Database error: {error_msg}",
+                "pipeline_id": pipeline_id,
+                "data": []
+            }), 500
 
 # Debug route to check paths
 @app.route('/api/debug')

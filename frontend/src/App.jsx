@@ -54,8 +54,8 @@ function App() {
     const hasBranching = pipeline.stages.some(s => s.stage_type === 'data_branching');
     const stageCount = pipeline.stages.length;
     
-    if (hasBranching || stageCount >= 5) return "advanced";
-    if (stageCount >= 3) return "intermediate";
+    if (hasBranching || stageCount >= 7) return "advanced";
+    if (stageCount >= 4) return "intermediate";
     return "beginner";
   };
 
@@ -64,6 +64,7 @@ function App() {
     const tags = [];
     if (pipeline.source_type === "api") tags.push("API");
     if (pipeline.source_type === "file") tags.push("CSV");
+    if (pipeline.source_type === "web_scraping") tags.push("Web Scraping");
     if (pipeline.stages.some(s => s.stage_type === 'data_branching')) tags.push("Branching");
     if (pipeline.stages.some(s => s.stage_type === 'data_transformation')) tags.push("Transform");
     if (pipeline.stages.some(s => s.stage_type === 'data_loading')) tags.push("Database");
@@ -80,21 +81,29 @@ function App() {
   };
 
   // Filter pipelines based on complexity and tags
-  const filteredPipelines = pipelines.filter(pipeline => {
-    // Check complexity filter
-    if (selectedComplexity !== "all" && getPipelineComplexity(pipeline) !== selectedComplexity) {
-      return false;
-    }
-    
-    // Check tag filters (pipeline must have ALL selected tags)
-    if (selectedTags.length > 0) {
-      const pipelineTags = getPipelineTags(pipeline);
-      const hasAllTags = selectedTags.every(tag => pipelineTags.includes(tag));
-      if (!hasAllTags) return false;
-    }
-    
-    return true;
-  });
+  const filteredPipelines = pipelines
+    .filter(pipeline => {
+      // Check complexity filter
+      if (selectedComplexity !== "all" && getPipelineComplexity(pipeline) !== selectedComplexity) {
+        return false;
+      }
+      
+      // Check tag filters (pipeline must have ALL selected tags)
+      if (selectedTags.length > 0) {
+        const pipelineTags = getPipelineTags(pipeline);
+        const hasAllTags = selectedTags.every(tag => pipelineTags.includes(tag));
+        if (!hasAllTags) return false;
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by complexity: beginner → intermediate → advanced
+      const complexityOrder = { beginner: 1, intermediate: 2, advanced: 3 };
+      const aComplexity = complexityOrder[getPipelineComplexity(a)];
+      const bComplexity = complexityOrder[getPipelineComplexity(b)];
+      return aComplexity - bComplexity;
+    });
 
   return (
     <div style={{
@@ -220,7 +229,7 @@ function App() {
               Filter by Tags
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-              {["API", "CSV", "Branching", "Transform", "Database"].map((tag) => (
+              {["API", "CSV", "Web Scraping", "Branching", "Transform", "Database"].map((tag) => (
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
@@ -285,16 +294,17 @@ function App() {
                 intermediate: "#F59E0B",
                 advanced: "#EF4444"
               };
+              const isSelected = selectedPipeline?.pipeline_id === p.pipeline_id;
               
               return (
                 <button
                   key={p.pipeline_id}
                   onClick={() => handlePipelineSelect(p.pipeline_id)}
                   style={{
-                    background: selectedPipeline?.pipeline_id === p.pipeline_id
+                    background: isSelected
                       ? "linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3))"
                       : "rgba(255, 255, 255, 0.05)",
-                    border: selectedPipeline?.pipeline_id === p.pipeline_id
+                    border: isSelected
                       ? "1px solid rgba(102, 126, 234, 0.5)"
                       : "1px solid rgba(255, 255, 255, 0.1)",
                     color: "#e4e4e7",
@@ -307,15 +317,15 @@ function App() {
                     transition: "all 0.3s ease",
                   }}
                   onMouseEnter={(e) => {
-                    if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
-                      e.target.style.background = "rgba(255, 255, 255, 0.1)";
-                      e.target.style.transform = "translateX(4px)";
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = "rgba(102, 126, 234, 0.6)";
+                      e.currentTarget.style.transform = "translateX(4px)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (selectedPipeline?.pipeline_id !== p.pipeline_id) {
-                      e.target.style.background = "rgba(255, 255, 255, 0.05)";
-                      e.target.style.transform = "translateX(0)";
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                      e.currentTarget.style.transform = "translateX(0)";
                     }
                   }}
                 >
@@ -477,7 +487,7 @@ function HomeView() {
           fontSize: "3rem",
           lineHeight: "1.1",
           marginTop: 0,
-          marginBottom: "1rem",
+          marginBottom: "1.0rem",
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
@@ -694,6 +704,8 @@ function InfoCard({ card, onClick }) {
 }
 
 // Generate sample output data for different pipelines
+// COMMENTED OUT - Now fetching real data from PostgreSQL
+/*
 function generateSampleOutputData(pipelineId) {
   if (pipelineId === 'thailand_hotels') {
     const locations = ['Bangkok', 'Phuket', 'Chiang Mai', 'Krabi', 'Pattaya', 'Samui'];
@@ -764,20 +776,106 @@ function generateSampleOutputData(pipelineId) {
     }));
   }
   
+  if (pipelineId === 'weather_analytics') {
+    const regions = ['North America', 'Europe', 'Asia'];
+    const cities = ['New York', 'London', 'Tokyo'];
+    const weatherTypes = ['rainy', 'hot', 'cold', 'moderate'];
+    const windCategories = ['calm', 'light', 'moderate', 'strong'];
+    
+    return Array.from({ length: 100 }, (_, i) => {
+      const regionIndex = i % 3;
+      const temp = -5 + Math.random() * 40;
+      
+      return {
+        region: regions[regionIndex],
+        city: cities[regionIndex],
+        time: new Date(2024, 10, 1 + Math.floor(i / 3), Math.floor(Math.random() * 24)).toISOString(),
+        date: new Date(2024, 10, 1 + Math.floor(i / 3)).toISOString().split('T')[0],
+        hour: Math.floor(Math.random() * 24),
+        temperature_2m: temp.toFixed(1),
+        relative_humidity_2m: (30 + Math.random() * 60).toFixed(0),
+        precipitation: (Math.random() * 15).toFixed(1),
+        wind_speed_10m: (Math.random() * 30).toFixed(1),
+        weather_type: weatherTypes[Math.floor(Math.random() * 4)],
+        comfort_index: (50 + Math.random() * 50).toFixed(1),
+        wind_category: windCategories[Math.floor(Math.random() * 4)]
+      };
+    });
+  }
+  
   return [];
 }
+*/
 
 // Data Preview Component
 function DataPreview({ pipelineId, pipelineName }) {
-  const data = generateSampleOutputData(pipelineId);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [displayStart, setDisplayStart] = useState(0);
+  const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const rowsPerPage = 10;
+
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    setDisplayStart(0);
+
+    fetch(`/api/pipelines/${pipelineId}/data`, { cache: 'no-store' })
+      .then(res => {
+        console.log(`Response for ${pipelineId}:`, res.status, res.statusText);
+        return res.json();
+      })
+      .then(result => {
+        console.log(`Data for ${pipelineId}:`, result);
+        if (result.error) {
+          setError(result.error);
+          setData([]);
+        } else {
+          setData(result.data || []);
+        }
+        setLastLoadedAt(new Date());
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching pipeline data:', err);
+        setError('Failed to fetch data from server');
+        setLoading(false);
+      });
+  };
+
+  // Initial fetch and on pipeline change
+  useEffect(() => {
+    fetchData();
+  }, [pipelineId]);
+
   const displayData = data.slice(displayStart, displayStart + rowsPerPage);
+  
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+        <div>Loading pipeline data...</div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', color: '#ef4444', padding: '2rem' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
+        <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Error Loading Data</div>
+        <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{error}</div>
+      </div>
+    );
+  }
   
   if (data.length === 0) {
     return (
       <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
-        No output data available for this pipeline
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📭</div>
+        <div>No data available for this pipeline</div>
+        <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Run the pipeline to populate the database</div>
       </div>
     );
   }
@@ -786,6 +884,34 @@ function DataPreview({ pipelineId, pipelineName }) {
   
   return (
     <div style={{ width: '100%' }}>
+      {/* Toolbar */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '0.75rem'
+      }}>
+        <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+          {lastLoadedAt ? `Last loaded: ${lastLoadedAt.toLocaleTimeString()}` : '—'}
+        </div>
+        <button
+          onClick={fetchData}
+          style={{
+            background: 'rgba(102, 126, 234, 0.2)',
+            border: '1px solid rgba(102, 126, 234, 0.4)',
+            color: '#a5b4fc',
+            padding: '0.5rem 0.9rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: 600
+          }}
+          title="Re-fetch data from PostgreSQL"
+        >
+          Refresh Data
+        </button>
+      </div>
+
       {/* Data Summary */}
       <div style={{
         display: 'grid',
@@ -1071,6 +1197,34 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
         >
           📋 Output Data
         </button>
+        {pipeline.detailed_explanation && (
+          <button
+            onClick={() => setActiveTab('details')}
+            style={{
+              background: activeTab === 'details' ? 'rgba(102, 126, 234, 0.3)' : 'transparent',
+              border: activeTab === 'details' ? '1px solid rgba(102, 126, 234, 0.5)' : '1px solid transparent',
+              color: activeTab === 'details' ? '#a5b4fc' : '#9ca3af',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '8px 8px 0 0',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: '600',
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'details') {
+                e.target.style.color = '#a5b4fc';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'details') {
+                e.target.style.color = '#9ca3af';
+              }
+            }}
+          >
+            📖 More Details
+          </button>
+        )}
       </div>
 
       {/* Tab Content: Pipeline Flow */}
@@ -1197,6 +1351,198 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
           />
         </div>
       )}
+
+      {/* Tab Content: More Details */}
+      {activeTab === 'details' && pipeline.detailed_explanation && (
+        <div style={{
+          background: "rgba(0, 0, 0, 0.3)",
+          borderRadius: "20px",
+          padding: "2.5rem",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+        }}>
+          {/* Overview Section */}
+          <div style={{ marginBottom: "2.5rem" }}>
+            <h3 style={{
+              fontSize: "1.5rem",
+              marginTop: 0,
+              marginBottom: "1rem",
+              color: "#f3f4f6",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}>
+              <span>📋</span> Pipeline Overview
+            </h3>
+            <p style={{
+              fontSize: "1.05rem",
+              lineHeight: "1.7",
+              color: "#d1d5db",
+              margin: 0,
+            }}>
+              {pipeline.detailed_explanation.overview}
+            </p>
+          </div>
+
+          {/* What You'll Learn */}
+          <div style={{
+            background: "rgba(102, 126, 234, 0.1)",
+            border: "1px solid rgba(102, 126, 234, 0.3)",
+            borderRadius: "12px",
+            padding: "1.5rem",
+            marginBottom: "2.5rem",
+          }}>
+            <h4 style={{
+              fontSize: "1.1rem",
+              marginTop: 0,
+              marginBottom: "1rem",
+              color: "#a5b4fc",
+            }}>
+              💡 What You'll Learn
+            </h4>
+            <ul style={{
+              margin: 0,
+              paddingLeft: "1.5rem",
+              color: "#d1d5db",
+              lineHeight: "1.8",
+            }}>
+              {pipeline.detailed_explanation.what_you_learn.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: "0.5rem" }}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Stage-by-Stage Breakdown */}
+          <div>
+            <h3 style={{
+              fontSize: "1.5rem",
+              marginTop: 0,
+              marginBottom: "1.5rem",
+              color: "#f3f4f6",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}>
+              <span>🔍</span> Stage-by-Stage Breakdown
+            </h3>
+            
+            {pipeline.detailed_explanation.stage_details.map((stageDetail, idx) => {
+              const stageInfo = pipeline.stages.find(s => s.stage_number === stageDetail.stage_number);
+              const stageColor = stageColors[stageInfo?.stage_type] || '#667eea';
+              
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: "rgba(0, 0, 0, 0.3)",
+                    border: `2px solid ${stageColor}`,
+                    borderRadius: "16px",
+                    padding: "1.75rem",
+                    marginBottom: "1.5rem",
+                  }}
+                >
+                  {/* Stage Header */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "1rem",
+                    marginBottom: "1.25rem",
+                  }}>
+                    <div style={{
+                      background: stageColor,
+                      color: "#fff",
+                      fontSize: "0.85rem",
+                      fontWeight: "700",
+                      padding: "0.4rem 1rem",
+                      borderRadius: "20px",
+                    }}>
+                      Stage {stageDetail.stage_number}
+                    </div>
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: "1.25rem",
+                      color: "#f3f4f6",
+                    }}>
+                      {stageInfo?.stage_name}
+                    </h4>
+                  </div>
+
+                  {/* What Happens */}
+                  <div style={{ marginBottom: "1.25rem" }}>
+                    <div style={{
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      color: "#a5b4fc",
+                      marginBottom: "0.5rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}>
+                      ▸ What Happens
+                    </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: "1rem",
+                      lineHeight: "1.7",
+                      color: "#d1d5db",
+                    }}>
+                      {stageDetail.what_happens}
+                    </p>
+                  </div>
+
+                  {/* Why It Matters */}
+                  <div style={{ marginBottom: "1.25rem" }}>
+                    <div style={{
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      color: "#fbbf24",
+                      marginBottom: "0.5rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}>
+                      ▸ Why It Matters
+                    </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: "1rem",
+                      lineHeight: "1.7",
+                      color: "#d1d5db",
+                    }}>
+                      {stageDetail.why_it_matters}
+                    </p>
+                  </div>
+
+                  {/* Technical Note */}
+                  <div style={{
+                    background: "rgba(255, 255, 255, 0.05)",
+                    borderLeft: "3px solid #6366f1",
+                    padding: "1rem",
+                    borderRadius: "8px",
+                  }}>
+                    <div style={{
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                      color: "#94a3b8",
+                      marginBottom: "0.4rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}>
+                      🔧 Technical Note
+                    </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: "0.95rem",
+                      lineHeight: "1.6",
+                      color: "#cbd5e1",
+                      fontFamily: "monospace",
+                    }}>
+                      {stageDetail.technical_note}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1295,19 +1641,19 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
       ref={containerRef}
       style={{
         display: "flex",
-        justifyContent: "center",
+        justifyContent: "flex-start",
         alignItems: "center",
         gap: "4rem",
-        flexWrap: "wrap",
         position: "relative",
         padding: "2rem",
+        minWidth: "min-content",
       }}
     >
       {stages.map((stage, index) => (
         <div 
           key={stage.stage_id} 
           id={`stage-${stage.stage_id}`}
-          style={{ position: "relative" }}
+          style={{ position: "relative", flexShrink: 0 }}
         >
           <StageNode
             stage={stage}
