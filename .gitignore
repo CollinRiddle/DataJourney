@@ -1,4 +1,6 @@
 # Python
+__pycache__/
+*.pyc
 *.so
 venv/
 *.egg-info/
