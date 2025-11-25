@@ -2,9 +2,8 @@ from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import json
+from decimal import Decimal
 from typing import cast
-import pandas as pd
-import numpy as np
 
 # Get the absolute path to the backend directory
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -18,6 +17,7 @@ CORS(app)  # Enable CORS for all routes
 def serve_react():
     """Serve the React app"""
     try:
+        assert app.static_folder is not None
         return send_from_directory(app.static_folder, 'index.html')
     except Exception as e:
         return f"Error serving index.html: {str(e)}", 500
@@ -26,12 +26,14 @@ def serve_react():
 @app.route('/assets/<path:filename>')
 def serve_assets(filename):
     """Serve files from the assets directory"""
+    assert app.static_folder is not None
     assets_dir = os.path.join(app.static_folder, 'assets')
     return send_from_directory(assets_dir, filename)
 
 @app.route('/vite.svg')
 def serve_vite_svg():
     """Serve the vite.svg file"""
+    assert app.static_folder is not None
     return send_from_directory(app.static_folder, 'vite.svg')
 
 # Catch-all route for client-side routing (must be last)
@@ -39,6 +41,7 @@ def serve_vite_svg():
 def catch_all(path):
     """Catch-all for client-side routing"""
     # If the file exists in static folder, serve it
+    assert app.static_folder is not None
     file_path = os.path.join(app.static_folder, path)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return send_from_directory(app.static_folder, path)
@@ -86,29 +89,42 @@ def get_pipeline_data(pipeline_id):
         return jsonify({"error": f"Unknown pipeline_id: {pipeline_id}"}), 404
     
     try:
-        # Connect to PostgreSQL and fetch data
+        # Connect to PostgreSQL and fetch data without pandas/numpy (storage-friendly)
         conn = get_connection()
-        query = f"SELECT * FROM {table_name} LIMIT 200"
-        df = pd.read_sql(query, conn)
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM {table_name} LIMIT 200")
+        assert cursor.description is not None
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+
+        data = []
+        for row in rows:
+            record = {}
+            for col, val in zip(columns, row):
+                # Convert Decimals to float for JSON
+                if isinstance(val, Decimal):
+                    val = float(val)
+                # Convert datetime/date/time to ISO string
+                elif hasattr(val, 'isoformat'):
+                    try:
+                        val = val.isoformat()
+                    except Exception:
+                        pass
+                # Decode bytes if any
+                elif isinstance(val, (bytes, bytearray)):
+                    val = val.decode('utf-8', errors='replace')
+                record[col] = val
+            data.append(record)
+
+        cursor.close()
         conn.close()
-        
-        # Normalize values to be JSON-safe
-        # - Replace NaN/NaT with None (becomes null in JSON)
-        # - Replace +/-inf with None
-        # Use both replace and where to cover numeric and datetime types robustly
-        df = df.replace({np.nan: None, np.inf: None, -np.inf: None})
-        df = df.where(pd.notnull(df), None)
-        
-        # Convert DataFrame to list of dictionaries
-        data = df.to_dict('records')
-        
+
         response = jsonify({
             "pipeline_id": pipeline_id,
             "table_name": table_name,
             "row_count": len(data),
             "data": data
         })
-        # Prevent browser/proxy caching so re-runs are visible immediately
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         return response
