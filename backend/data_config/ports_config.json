@@ -1,0 +1,25 @@
+{
+  "ports": [
+    {
+      "port_id": "US-LA",
+      "name": "Port of Los Angeles",
+      "country": "USA",
+      "port_bbox": {"min_lat": 33.70, "max_lat": 33.77, "min_lon": -118.29, "max_lon": -118.23},
+      "anchorage_bbox": {"min_lat": 33.66, "max_lat": 33.72, "min_lon": -118.35, "max_lon": -118.27}
+    },
+    {
+      "port_id": "NL-RTM",
+      "name": "Port of Rotterdam",
+      "country": "Netherlands",
+      "port_bbox": {"min_lat": 51.90, "max_lat": 51.98, "min_lon": 4.00, "max_lon": 4.14},
+      "anchorage_bbox": {"min_lat": 51.85, "max_lat": 51.92, "min_lon": 3.90, "max_lon": 4.05}
+    },
+    {
+      "port_id": "CN-SH",
+      "name": "Port of Shanghai",
+      "country": "China",
+      "port_bbox": {"min_lat": 30.55, "max_lat": 31.00, "min_lon": 121.60, "max_lon": 122.10},
+      "anchorage_bbox": {"min_lat": 30.40, "max_lat": 30.70, "min_lon": 121.30, "max_lon": 121.80}
+    }
+  ]
+}

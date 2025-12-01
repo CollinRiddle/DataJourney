@@ -407,7 +407,7 @@
       "status": "active",
       "last_run": null,
       "detailed_explanation": {
-        "overview": "This advanced pipeline combines data from three SpaceX API endpoints, validates data quality, and splits processing based on completeness. It shows enterprise patterns like multi-source joins and quality-based branching.",
+        "overview": "This pipeline pulls launch, rocket, and launchpad info and puts them together. If a launch has enough details we add a few extra fields; if not we keep a simpler version. You learn how to merge sources and handle missing pieces.",
         "what_you_learn": [
           "Joining data from multiple API sources",
           "Implementing data quality checks and routing",
@@ -416,33 +416,33 @@
         "stage_details": [
           {
             "stage_number": 1,
-            "what_happens": "Three separate API calls fetch launch history, rocket specifications, and launchpad details. This raw data is stored in separate tables before processing.",
-            "why_it_matters": "Real systems rarely have all data in one place. Learning to coordinate multiple data sources is critical for building comprehensive analytics.",
-            "technical_note": "Uses concurrent API requests and relationship IDs to prepare for joins across launches, rockets, and launchpads."
+            "what_happens": "We call three endpoints: launches, rockets, launchpads. Each returns its own JSON list.",
+            "why_it_matters": "Data often lives in separate places. You must pull pieces before combining them.",
+            "technical_note": "Simple API GET calls; store raw lists for later matching."
           },
           {
             "stage_number": 2,
-            "what_happens": "Launch records are joined with rocket and launchpad information using ID relationships. Each launch now contains rocket name, launchpad location, and mission details in a single row.",
-            "why_it_matters": "Denormalized data (everything in one table) is faster to query and easier to analyze than scattered relational data.",
-            "technical_note": "Uses pandas merge operations with left joins to preserve all launches even if rocket/launchpad data is missing."
+            "what_happens": "We match each launch to its rocket and launchpad using IDs so all info sits in one row.",
+            "why_it_matters": "Having everything together makes filtering and viewing launches easier.",
+            "technical_note": "Basic join by ID; keep launches even when related data is missing."
           },
           {
             "stage_number": 3,
-            "what_happens": "Records split based on data completeness. High-quality records (with success status, dates, and payloads) receive advanced analytics like reliability scoring. Incomplete records get basic processing only.",
-            "why_it_matters": "Data quality varies in production. Routing good data through advanced logic while safely handling incomplete data prevents errors and maximizes insight extraction.",
-            "technical_note": "Uses quality scoring logic with thresholds to determine routing, then applies different transformations per branch."
+            "what_happens": "We check if a launch has key fields. Good ones get extra fields; missing ones stay simple.",
+            "why_it_matters": "Treating complete and incomplete data differently avoids errors and still keeps partial records.",
+            "technical_note": "Score = fraction of required fields present. Threshold decides path."
           },
           {
             "stage_number": 4,
-            "what_happens": "Both quality branches rejoin into a unified dataset. The result includes all launches, with high-quality records having enhanced metrics and low-quality records having null values for advanced fields.",
-            "why_it_matters": "Downstream systems need consistent schemas. Merging quality branches with proper null handling ensures database compatibility.",
-            "technical_note": "Uses pandas concat with outer join semantics to combine branches without losing records."
+            "what_happens": "We stack both sets back together so there is one final list of launches.",
+            "why_it_matters": "A single table is easier to query and show in the app.",
+            "technical_note": "Simple concat; missing advanced fields remain blank."
           },
           {
             "stage_number": 5,
-            "what_happens": "The enriched launch analytics dataset loads into PostgreSQL with indexed columns for fast querying. The table includes launch outcomes, rocket specifications, launchpad locations, and calculated reliability scores.",
-            "why_it_matters": "Indexed database storage enables complex queries like finding all successful Falcon 9 launches from specific pads, or calculating success rates by year and rocket type.",
-            "technical_note": "Uses SQLAlchemy with CREATE INDEX statements on key columns (rocket_name, launchpad_name, launch_year) for query optimization."
+            "what_happens": "We save the final launches table to the database for quick lookups.",
+            "why_it_matters": "Storing data lets you query past launches without re-calling the API.",
+            "technical_note": "Basic write + a few indexes on common filter columns."
           }
         ]
       },
@@ -607,55 +607,20 @@
       "status": "active",
       "last_run": null,
       "detailed_explanation": {
-        "overview": "This advanced pipeline demonstrates parallel processing by fetching weather data for three regions simultaneously, processing each independently, then combining results. This fan-out/fan-in pattern dramatically improves performance for multi-source workflows.",
+        "overview": "This pipeline grabs weather for three cities at the same time, cleans each set, then combines them. You learn simple parallel fetching and how to compare regions.",
         "what_you_learn": [
           "Parallel data extraction for improved performance",
           "Region-specific transformations on partitioned data",
           "Aggregating parallel results into unified datasets"
         ],
         "stage_details": [
-          {
-            "stage_number": 1,
-            "what_happens": "The pipeline fans out, making three simultaneous API calls to Open-Meteo for New York, London, and Tokyo. Each region's hourly weather data (temperature, humidity, wind) downloads in parallel.",
-            "why_it_matters": "Parallel extraction reduces total runtime dramatically. Instead of 3 sequential 2-second calls (6 seconds), parallel execution completes in roughly 2 seconds.",
-            "technical_note": "Uses concurrent HTTP requests or multi-threading to fetch data simultaneously without blocking."
-          },
-          {
-            "stage_number": 2,
-            "what_happens": "Each region's data undergoes customized processing. North American temps convert to Fahrenheit, European data adds comfort indices, and Asian data gets typhoon season flags. Processing happens independently and simultaneously.",
-            "why_it_matters": "Different regions have different requirements. Parallel processing with region-specific logic handles localization efficiently while maintaining performance.",
-            "technical_note": "Uses separate transformation functions per region, executed in parallel threads or processes."
-          },
-          {
-            "stage_number": 3,
-            "what_happens": "Data from Asia (Tokyo) is fetched in parallel with the other regions, completing the fan-out pattern. Tokyo's weather data includes the same hourly metrics as the other cities.",
-            "why_it_matters": "Completing all parallel tasks simultaneously maximizes performance gains. The pipeline doesn't wait for sequential execution.",
-            "technical_note": "Runs in the same ThreadPoolExecutor as stages 1-2, all completing around the same time."
-          },
-          {
-            "stage_number": 4,
-            "what_happens": "The fourth parallel fetch completes the data extraction phase. This marks the end of the fan-out portion of the pipeline.",
-            "why_it_matters": "All source data is now available for the fan-in merge operation that follows.",
-            "technical_note": "Final parallel thread completes, triggering the merge stage."
-          },
-          {
-            "stage_number": 5,
-            "what_happens": "All regional datasets merge into one unified table (fan-in). The combined dataset includes a region column to distinguish data sources while maintaining a consistent schema.",
-            "why_it_matters": "Aggregating parallel results is essential for holistic analysis. Combined data enables cross-region comparisons and global trend detection.",
-            "technical_note": "Uses pandas concat with region identifiers to stack DataFrames while preserving data lineage."
-          },
-          {
-            "stage_number": 6,
-            "what_happens": "The merged data undergoes analytics transformations: daily aggregates are calculated, weather conditions are classified (hot, cold, rainy, moderate), and comfort indices are computed.",
-            "why_it_matters": "Raw hourly data is too granular for many use cases. Daily aggregates and classifications make the data more actionable for decision-making.",
-            "technical_note": "Uses pandas groupby() for aggregations and apply() for conditional classifications based on temperature and precipitation thresholds."
-          },
-          {
-            "stage_number": 7,
-            "what_happens": "The processed multi-region weather analytics loads into PostgreSQL. Indexes are created on region, city, and date columns for fast filtering and time-series queries.",
-            "why_it_matters": "Database storage enables time-series analysis, trend detection across regions, and powers weather comparison dashboards and APIs.",
-            "technical_note": "Uses SQLAlchemy with indexed columns to optimize queries like 'show me temperature trends for all regions over the last month'."
-          }
+          {"stage_number": 1, "what_happens": "Start three API calls for New York, London, and Tokyo.", "why_it_matters": "Doing them together saves time.", "technical_note": "Fire off the requests in parallel."},
+          {"stage_number": 2, "what_happens": "Clean each city's rows and add simple extra fields (like comfort info).", "why_it_matters": "Turns raw numbers into easier facts.", "technical_note": "One small function per city."},
+          {"stage_number": 3, "what_happens": "Finish the last city fetch.", "why_it_matters": "Now all data is ready to join.", "technical_note": "Just wait for remaining request."},
+          {"stage_number": 4, "what_happens": "Confirm all three sets are in memory.", "why_it_matters": "We can combine safely.", "technical_note": "Simple completion check."},
+          {"stage_number": 5, "what_happens": "Stack all rows into one table with a region column.", "why_it_matters": "Lets you compare cities easily.", "technical_note": "Simple table append."},
+          {"stage_number": 6, "what_happens": "Make daily summaries and simple labels like hot, cold, rainy.", "why_it_matters": "Daily view is easier to digest.", "technical_note": "Group by date and region; add labels by thresholds."},
+          {"stage_number": 7, "what_happens": "Save the final table so the app can read it.", "why_it_matters": "Lets you view and reuse the results later.", "technical_note": "Write table + add a few helpful indexes."}
         ]
       },
       "stages": [
@@ -966,37 +931,17 @@
       "status": "active",
       "last_run": null,
       "detailed_explanation": {
-        "overview": "This intermediate security-focused pipeline analyzes network traffic patterns to detect potential threats. It demonstrates feature engineering, risk scoring algorithms, and cybersecurity analytics workflows.",
+        "overview": "This pipeline reads a small network traffic sample and gives each row a simple risk score. You learn how to spot basic patterns like unusual ports or very small packets and turn them into a priority flag.",
         "what_you_learn": [
           "Working with security datasets from Kaggle",
           "Building risk scoring systems with multiple factors",
           "Identifying anomalies using pattern analysis"
         ],
         "stage_details": [
-          {
-            "stage_number": 1,
-            "what_happens": "The pipeline downloads a network traffic dataset from Kaggle containing packet-level data with features like packet size, port numbers, protocols, and spectral characteristics.",
-            "why_it_matters": "Kaggle hosts thousands of real-world datasets. Learning kagglehub integration enables access to datasets for machine learning and analytics projects.",
-            "technical_note": "Uses kagglehub library to authenticate and download CSV data to local cache for processing."
-          },
-          {
-            "stage_number": 2,
-            "what_happens": "Traffic patterns are analyzed: protocols are classified, suspicious ports are flagged, SYN flood attacks are detected, and spectral entropy identifies repetitive (potentially malicious) patterns.",
-            "why_it_matters": "Security threats have signatures. Pattern analysis helps identify port scans, DDoS attacks, and unusual traffic that may indicate breaches.",
-            "technical_note": "Uses pandas for protocol categorization, port matching against threat databases, and statistical analysis of entropy."
-          },
-          {
-            "stage_number": 3,
-            "what_happens": "Each traffic record receives a risk score (0-100) based on multiple factors: labeled threats, suspicious ports, high volume, low entropy, and SYN floods. Scores determine threat levels (low, medium, high, critical).",
-            "why_it_matters": "Security teams can't investigate everything. Risk scoring prioritizes alerts, focusing attention on the most dangerous traffic first.",
-            "technical_note": "Uses weighted scoring algorithm combining binary flags and statistical thresholds to calculate composite risk."
-          },
-          {
-            "stage_number": 4,
-            "what_happens": "Analyzed traffic with risk scores and threat classifications loads into PostgreSQL, creating a searchable security database for incident response and trend analysis.",
-            "why_it_matters": "Historical security data enables threat hunting, compliance reporting, and training anomaly detection models for automated security.",
-            "technical_note": "Uses SQLAlchemy with bulk insert operations to efficiently load analyzed security data."
-          }
+          {"stage_number": 1, "what_happens": "Load a small CSV of network packets (IPs, ports, protocol, size).", "why_it_matters": "Gives raw rows to classify.", "technical_note": "Simple dataset download + limit to first 200 rows."},
+          {"stage_number": 2, "what_happens": "Classify protocol type and flag packets using common risky ports.", "why_it_matters": "Helps surface traffic worth a closer look.", "technical_note": "Check port lists; simple size bucket labels."},
+          {"stage_number": 3, "what_happens": "Add points for suspicious signals (risky port, tiny packet, very large packet, heavy traffic).", "why_it_matters": "Creates a single number to sort by urgency.", "technical_note": "Add fixed points; convert total into low/medium/high/critical."},
+          {"stage_number": 4, "what_happens": "Save scored rows to the database.", "why_it_matters": "Lets the app show and filter by threat level.", "technical_note": "Simple table write + indexes for common filters."}
         ]
       },
       "stages": [
@@ -1153,37 +1098,17 @@
       "status": "active",
       "last_run": null,
       "detailed_explanation": {
-        "overview": "This intermediate time-series pipeline demonstrates temporal data processing by analyzing stock market data. It calculates technical indicators, detects trends, and shows how to handle rolling window computations for financial analytics.",
+        "overview": "This pipeline pulls recent prices for three stocks, adds a few simple calculations like moving averages and basic trend labels, then stores the result. You learn how to work with time‑ordered rows.",
         "what_you_learn": [
           "Processing time-series data with temporal ordering",
           "Calculating technical indicators (RSI, moving averages, volatility)",
           "Implementing rolling window computations and trend detection"
         ],
         "stage_details": [
-          {
-            "stage_number": 1,
-            "what_happens": "The pipeline fetches 90 days of historical stock data for Apple, Google, and Microsoft from Yahoo Finance API. Each record contains OHLC prices (open, high, low, close) and trading volume.",
-            "why_it_matters": "Time-series data requires proper temporal ordering. Understanding how to extract and structure financial data is essential for analytics, trading systems, and market research.",
-            "technical_note": "Uses Yahoo Finance API with Unix timestamp parameters to fetch daily OHLC data, then converts to pandas DataFrame with datetime indexing."
-          },
-          {
-            "stage_number": 2,
-            "what_happens": "Technical indicators are calculated: 7-day and 20-day moving averages, RSI (Relative Strength Index), daily returns, volatility, and momentum. These use rolling window calculations on the price data.",
-            "why_it_matters": "Technical indicators reveal trends and patterns not visible in raw prices. Moving averages smooth volatility, RSI identifies overbought/oversold conditions, and momentum shows price strength.",
-            "technical_note": "Uses pandas rolling() for window calculations, pct_change() for returns, and custom RSI formula with gain/loss ratios over 14-day periods."
-          },
-          {
-            "stage_number": 3,
-            "what_happens": "Market context is added: volume categories (high/normal/low), trend classification (bullish/bearish/neutral), RSI signals (overbought/oversold), volatility levels, and day types (gain/loss/strong movements).",
-            "why_it_matters": "Classifications make raw indicators actionable. Traders use these signals for decision-making, and categorization enables filtering and alerting in analytics dashboards.",
-            "technical_note": "Uses conditional logic and quantile-based thresholds to classify continuous metrics into categorical signals."
-          },
-          {
-            "stage_number": 4,
-            "what_happens": "The enriched stock data loads into PostgreSQL with specialized indexes on timestamp, symbol, and date columns. This optimizes time-series queries like 'show AAPL prices for last 30 days' or 'find all bearish days'.",
-            "why_it_matters": "Time-series databases need proper indexing for performance. Queries often filter by time ranges and symbols, so composite indexes on (symbol, date) dramatically speed up analytics.",
-            "technical_note": "Uses CREATE INDEX on timestamp and composite index on (symbol, date) to optimize temporal queries and enable efficient stock-specific filtering."
-          }
+          {"stage_number": 1, "what_happens": "Get daily prices for Apple, Google, Microsoft (open, high, low, close, volume).", "why_it_matters": "Price history is the base for all later calculations.", "technical_note": "Simple API call per symbol; turn JSON into rows."},
+          {"stage_number": 2, "what_happens": "Add moving averages and simple daily change stats.", "why_it_matters": "Smoothed lines and percent changes make patterns easier to see.", "technical_note": "Basic rolling averages + percent change."},
+          {"stage_number": 3, "what_happens": "Label each day (trend up, down, or flat) and simple volume buckets.", "why_it_matters": "Categories are easier to filter and explain than raw numbers.", "technical_note": "Compare price to averages; rough cutoffs for volume."},
+          {"stage_number": 4, "what_happens": "Save final rows to the database for quick lookups.", "why_it_matters": "Lets the app show historic trends without refetching.", "technical_note": "Store table + indexes on symbol and date."}
         ]
       },
       "stages": [
@@ -1328,6 +1253,112 @@
       "total_execution_time_ms": null,
       "final_output": {
         "database_table": "stock_market_analytics",
+        "record_count": null
+      }
+    }
+    ,
+    {
+      "pipeline_id": "shipping_disruptions",
+      "pipeline_name": "Global Shipping Disruption Monitoring",
+      "description": "Geospatial/event detection pipeline computing port disruption risk scores from vessel positions",
+      "source_type": "file",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This pipeline looks at a tiny sample of ship positions and gives each port a simple congestion score. We count how many ships are sitting still, how many appear to be waiting, and how many are moving. From that we make an easy-to-read risk score.",
+        "what_you_learn": [
+          "How raw position rows become port activity",
+          "Identifying waiting vs moving ships with speed",
+          "Turning counts into a simple risk score"
+        ],
+        "stage_details": [
+          {"stage_number": 1, "what_happens": "Load a small CSV of ship positions (id, location, speed, time).", "why_it_matters": "Gives us basic movement snapshots to work with.", "technical_note": "Tiny file keeps things fast and low storage."},
+          {"stage_number": 2, "what_happens": "Match each position to a port area or its waiting area (anchorage).", "why_it_matters": "Lets us tell whether a ship is inside the port or waiting nearby.", "technical_note": "Just simple box checks (min/max lat & lon)."},
+          {"stage_number": 3, "what_happens": "Mark slow ships in the waiting area as \"dwell\" and fast ships inside the port as \"throughput\".", "why_it_matters": "Separates idle queue build‑up from active movement.", "technical_note": "Uses two speed cutoffs: <=0.5 = still, >=5 = moving."},
+          {"stage_number": 4, "what_happens": "Count dwell events, unique waiting ships, and moving ships; blend into a 0–100 score.", "why_it_matters": "A single number is easy to scan for rising congestion.", "technical_note": "Weighted mix: waiting + dwell heavier than movement drop."},
+          {"stage_number": 5, "what_happens": "Save scores to the database so the app can show them.", "why_it_matters": "Persists results for viewing and future comparison.", "technical_note": "Stores ports and scores tables; adds basic indexes."}
+        ]
+      },
+      "stages": [
+        {"stage_id": "ingest_positions", "stage_number": 1, "stage_name": "Ingest Positions", "stage_type": "data_ingestion", "description": "Load AIS-like vessel positions from CSV", "source": {"type": "file", "path": "backend/data/ais_sample.csv"}, "output": {"format": "rows", "columns": ["vessel_id", "lat", "lon", "speed_knots", "timestamp"]}, "code_snippet": "import csv\nwith open('backend/data/ais_sample.csv', 'r', encoding='utf-8') as f:\n    reader = csv.DictReader(f)\n    positions = list(reader)"},
+        {"stage_id": "geofence_join", "stage_number": 2, "stage_name": "Geofence Join", "stage_type": "data_transformation", "description": "Tag positions to ports/anchorages via bbox checks", "output": {"format": "rows", "columns": ["port_id", "location_type"]}, "code_snippet": "def in_box(lat, lon, box):\n    return box['min_lat'] <= lat <= box['max_lat'] and box['min_lon'] <= lon <= box['max_lon']\n# Iterate positions, assign port_id/location_type from configured boxes"},
+        {"stage_id": "event_extraction", "stage_number": 3, "stage_name": "Extract Events", "stage_type": "data_transformation", "description": "Classify dwell and moving events using speed thresholds", "output": {"format": "rows", "columns": ["event_type", "port_id", "vessel_id", "timestamp"]}, "code_snippet": "if location_type == 'anchorage' and speed_knots <= 0.5:\n    event = 'dwell'\nelif location_type == 'port' and speed_knots >= 5:\n    event = 'moving'"},
+        {"stage_id": "compute_scores", "stage_number": 4, "stage_name": "Compute Scores", "stage_type": "data_transformation", "description": "Aggregate metrics per port and compute risk scores", "output": {"format": "table", "columns": ["port_id", "dwell_events", "queue_size", "throughput", "risk_score"]}, "code_snippet": "risk_score = min(100, dwell_events*2 + queue_size*3 - throughput)", "notes": "Computes a simple 0-100 congestion score using weighted factors"},
+        {"stage_id": "load_scores", "stage_number": 5, "stage_name": "Load to PostgreSQL", "stage_type": "data_loading", "description": "Persist ports and disruption scores with indexes", "destination": {"table_name": "port_disruption_scores", "write_mode": "append", "create_indexes": true, "index_columns": ["port_id", "score_time"]}, "code_snippet": "from sqlalchemy import create_engine, text\nimport os\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n# Create table if missing\nwith engine.connect() as conn:\n    conn.execute(text(\"CREATE TABLE IF NOT EXISTS port_disruption_scores (\\n        port_id TEXT,\\n        dwell_events INT,\\n        queue_size INT,\\n        throughput INT,\\n        risk_score INT,\\n        score_time TIMESTAMP DEFAULT NOW()\\n    )\"))\n    conn.commit()\n# Write rows\nscores_df.to_sql('port_disruption_scores', engine, if_exists='append', index=False)\n# Indexes\nwith engine.connect() as conn:\n    for col in ['port_id','score_time']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_port_{col} ON port_disruption_scores({col})'))\n    conn.commit()", "notes": "Loads disruption scores and adds helpful indexes for filtering by port and time"}
+      ],
+      "final_output": {"database_table": "port_disruption_scores", "record_count": null}
+    }
+    ,
+    {
+      "pipeline_id": "crypto_prices",
+      "pipeline_name": "Crypto Prices Snapshot",
+      "description": "Fetch simple prices for a few coins and save a small table.",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This pipeline gets current prices for a few popular cryptocurrencies and saves them. It’s a tiny example that shows how to call an API and store a simple table.",
+        "what_you_learn": [
+          "How to fetch data from a public API",
+          "Picking just the fields you need",
+          "Saving a small snapshot to a database"
+        ],
+        "stage_details": [
+          {"stage_number": 1, "what_happens": "Call the CoinGecko API for prices of BTC, ETH, and SOL.", "why_it_matters": "Shows a quick, real API request.", "technical_note": "HTTP GET + JSON parse."},
+          {"stage_number": 2, "what_happens": "Make a small table with coin, price, currency, and time.", "why_it_matters": "Keeps the data clean and simple.", "technical_note": "Only a few columns."},
+          {"stage_number": 3, "what_happens": "Save the rows to the database.", "why_it_matters": "Lets the app display the latest snapshot.", "technical_note": "Basic insert with indexes."}
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "fetch_prices",
+          "stage_number": 1,
+          "stage_name": "Fetch Prices",
+          "stage_type": "data_ingestion",
+          "description": "Call CoinGecko API to get prices for several coins",
+          "source": {
+            "type": "api",
+            "base_url": "https://api.coingecko.com/api/v3/simple/price",
+            "coins": ["bitcoin", "ethereum", "solana", "cardano", "polkadot", "dogecoin", "litecoin", "tron", "chainlink", "monero"],
+            "currency": "usd"
+          },
+          "output": {
+            "format": "rows",
+            "columns": ["coin", "currency", "price", "fetched_at"]
+          },
+          "code_snippet": "import urllib.request, json, pandas as pd\nurl = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,cardano,polkadot,dogecoin,litecoin,tron,chainlink,monero&vs_currencies=usd'\nreq = urllib.request.Request(url, headers={'User-Agent': 'DataJourney/1.0'})\nwith urllib.request.urlopen(req, timeout=10) as resp:\n    data = json.loads(resp.read().decode('utf-8'))\nfetched_at = pd.Timestamp.utcnow()",
+          "notes": "Small API call with a short timeout to keep responses fast"
+        },
+        {
+          "stage_id": "shape_table",
+          "stage_number": 2,
+          "stage_name": "Shape Table",
+          "stage_type": "data_transformation",
+          "description": "Create a tiny table with just the fields we need",
+          "transformations": [
+            {"operation": "select_fields", "description": "Keep coin, price, currency, and time"},
+            {"operation": "normalize_names", "description": "Use simple lowercase names"}
+          ],
+          "output": {"format": "table", "columns": ["coin", "currency", "price", "fetched_at"]},
+          "code_snippet": "rows = []\nfor coin, info in data.items():\n    price = info.get('usd')\n    if price is not None:\n        rows.append((coin, 'usd', float(price), fetched_at))\ncrypto_df = pd.DataFrame(rows, columns=['coin','currency','price','fetched_at'])"
+        },
+        {
+          "stage_id": "load_to_db",
+          "stage_number": 3,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Insert the snapshot rows into crypto_prices table",
+          "destination": {
+            "table_name": "crypto_prices",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": ["coin", "fetched_at"]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\nengine = create_engine(os.environ['AIVEN_PG_URI'])\nwith engine.connect() as conn:\n    conn.execute(text('TRUNCATE TABLE IF EXISTS crypto_prices'))\n    conn.commit()\ncrypto_df.to_sql('crypto_prices', engine, if_exists='append', index=False)\nwith engine.connect() as conn:\n    for col in ['coin','fetched_at']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_crypto_{col} ON crypto_prices({col})'))\n    conn.commit()"
+        }
+      ],
+      "final_output": {
+        "database_table": "crypto_prices",
         "record_count": null
       }
     }

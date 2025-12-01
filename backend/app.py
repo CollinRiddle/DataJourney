@@ -81,7 +81,9 @@ def get_pipeline_data(pipeline_id):
         'weather_analytics': 'weather_analytics',
         'hackernews_scraper': 'hackernews_posts',
         'network_traffic': 'network_traffic_analysis',
-        'stock_market': 'stock_market_analytics'
+        'stock_market': 'stock_market_analytics',
+        'shipping_disruptions': 'port_disruption_scores',
+        'crypto_prices': 'crypto_prices'
     }
     
     table_name = pipeline_table_map.get(pipeline_id)

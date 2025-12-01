@@ -16,5 +16,10 @@ def get_engine():
     return create_engine(conn_str)
 
 def get_connection():
-    conn = psycopg2.connect(os.getenv("AIVEN_PG_URI"))
+    uri = os.getenv("AIVEN_PG_URI") or os.getenv("DATABASE_URL")
+    if not uri:
+        raise RuntimeError("Database URI not set (AIVEN_PG_URI or DATABASE_URL)")
+    if uri.startswith("postgres://"):
+        uri = uri.replace("postgres://", "postgresql://", 1)
+    conn = psycopg2.connect(uri)
     return conn
