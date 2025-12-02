@@ -1330,6 +1330,710 @@
         "database_table": "stock_market_analytics",
         "record_count": null
       }
+    },
+    {
+      "pipeline_id": "crypto_market",
+      "pipeline_name": "Cryptocurrency Market Cross-Validation",
+      "description": "Advanced pipeline with diamond split, bidirectional processing, and feedback loops for crypto market analysis",
+      "source_type": "api",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This advanced pipeline demonstrates a unique bidirectional flow pattern where cryptocurrency data is extracted in three parallel timeframes (spot, 24h, 7d), cross-validated against each other, then enriched through a feedback loop before final analysis. Unlike linear or simple branching pipelines, this shows how data can flow backward to re-enrich earlier stages based on downstream validation.",
+        "what_you_learn": [
+          "Diamond split pattern with parallel multi-timeframe extraction",
+          "Cross-validation techniques comparing independent data streams",
+          "Feedback loops that re-enrich upstream data with downstream insights",
+          "Anomaly detection through timeframe correlation analysis",
+          "Market manipulation and risk scoring algorithms"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline fetches metadata for the top 5 cryptocurrencies (Bitcoin, Ethereum, BNB, Solana, Cardano) from CoinGecko API, including market cap rank, community scores, and liquidity metrics.",
+            "why_it_matters": "Metadata provides context for interpreting price movements. High-liquidity coins behave differently than low-liquidity ones, and community scores indicate project health.",
+            "technical_note": "Uses CoinGecko's comprehensive coins endpoint with rate limiting to stay within free tier API limits."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "Data splits into three parallel extraction paths (diamond split): (2a) Current spot prices with 24h change, (2b) Hourly prices for last 24 hours, (2c) Daily prices for last 7 days. All three fetch simultaneously.",
+            "why_it_matters": "Multi-timeframe analysis reveals patterns invisible in single timeframes. Flash crashes appear in spot data, volatility patterns in hourly data, and trends in daily data. Parallel execution saves 60% runtime compared to sequential fetching.",
+            "technical_note": "Uses ThreadPoolExecutor for concurrent API calls, with each thread fetching a different timeframe independently."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Cross-validation node compares all three timeframes to detect anomalies. It calculates: spot vs 24h average deviation, spot vs 7d average deviation, volume anomalies (24h vs 7d), volatility scores, and checks trend consistency across timeframes.",
+            "why_it_matters": "Single data sources can be manipulated or contain errors. Cross-validation builds confidence by verifying consistency. If spot price deviates >10% from 24h average, it flags potential flash crash or pump & dump scheme.",
+            "technical_note": "Statistical validation using percentage deviations, standard deviation for volatility, and boolean logic for trend consistency checks."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "FEEDBACK LOOP: Instead of moving forward, this stage loops back to re-enrich the spot price data from Stage 2a with confidence scores, data quality ratings, and reliability metrics calculated from the cross-validation results in Stage 3.",
+            "why_it_matters": "This bidirectional flow demonstrates how downstream analysis can improve upstream data quality assessment. The spot prices now carry confidence scores indicating how much to trust them based on multi-timeframe validation.",
+            "technical_note": "Merges spot data with validation metrics using pandas join operations, then calculates weighted confidence scores (0-100%) based on deviation thresholds."
+          },
+          {
+            "stage_number": 5,
+            "what_happens": "Anomaly classification analyzes enriched data to detect market manipulation patterns: flash crash risk (sudden drops), pump risk (sudden spikes), volume manipulation flags, and calculates composite manipulation scores (0-100). Assigns risk levels: low/medium/high/critical.",
+            "why_it_matters": "Automated anomaly detection enables real-time alerts for suspicious market activity. Crypto markets are volatile and manipulation-prone, making risk scoring essential for informed trading decisions.",
+            "technical_note": "Multi-factor scoring algorithm combining price deviations, volume anomalies, volatility, trend inconsistencies, and confidence scores into composite risk metric."
+          },
+          {
+            "stage_number": 6,
+            "what_happens": "All data streams merge with metadata enrichments. Adds 24h and 7d price ranges (high/low), calculates position within ranges (e.g., 'current price is 75% of the way from 24h low to high'), and integrates CoinGecko scores.",
+            "why_it_matters": "Unified dataset combines temporal analysis, risk metrics, validation scores, and metadata into a comprehensive market intelligence view. Position-in-range metrics help identify support/resistance levels.",
+            "technical_note": "Uses pandas merge operations with multiple dataframes, calculates percentile positions within price ranges, and rounds numeric columns for database compatibility."
+          },
+          {
+            "stage_number": 7,
+            "what_happens": "Complete cryptocurrency market analysis dataset loads into PostgreSQL with indexes on symbol, risk_level, and timestamp. The table contains spot prices, cross-validated metrics, confidence scores, anomaly flags, and market metadata.",
+            "why_it_matters": "Database storage enables historical tracking of anomalies, powering trend analysis dashboards, alerting systems for suspicious activity, and research into market manipulation patterns over time.",
+            "technical_note": "Uses SQLAlchemy with CREATE INDEX on key columns for fast filtering by symbol, risk level, and time-based queries for market surveillance."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "extract_crypto_metadata",
+          "stage_number": 1,
+          "stage_name": "Extract Crypto Metadata",
+          "stage_type": "data_ingestion",
+          "description": "Fetch cryptocurrency metadata including rankings, scores, and fundamental metrics",
+          "source": {
+            "type": "api",
+            "base_url": "https://api.coingecko.com/api/v3",
+            "endpoint": "/coins/{id}",
+            "cryptocurrencies": ["bitcoin", "ethereum", "binancecoin", "solana", "cardano"]
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "crypto_id",
+              "symbol",
+              "name",
+              "market_cap_rank",
+              "coingecko_score",
+              "developer_score",
+              "community_score",
+              "liquidity_score",
+              "public_interest_score"
+            ]
+          },
+          "code_snippet": "for crypto_id in ['bitcoin', 'ethereum', 'binancecoin', 'solana', 'cardano']:\n    url = f'https://api.coingecko.com/api/v3/coins/{crypto_id}'\n    response = requests.get(url)\n    data = response.json()\n    metadata.append({\n        'crypto_id': crypto_id,\n        'name': data['name'],\n        'market_cap_rank': data['market_cap_rank'],\n        ...\n    })",
+          "execution_time_ms": null,
+          "notes": "Fetches fundamental data for top 5 cryptocurrencies by market cap"
+        },
+        {
+          "stage_id": "diamond_split_init",
+          "stage_number": 2,
+          "stage_name": "Diamond Split: Initialize Parallel Extraction",
+          "stage_type": "data_branching",
+          "description": "Split into 3 parallel timeframe extraction paths",
+          "branch_condition": "timeframe_analysis",
+          "branches": [
+            {
+              "branch_id": "spot_prices_path",
+              "condition": "timeframe == 'spot'",
+              "next_stage": "extract_spot_prices"
+            },
+            {
+              "branch_id": "hourly_24h_path",
+              "condition": "timeframe == '24h'",
+              "next_stage": "extract_24h_data"
+            },
+            {
+              "branch_id": "daily_7d_path",
+              "condition": "timeframe == '7d'",
+              "next_stage": "extract_7d_trends"
+            }
+          ],
+          "code_snippet": "# Diamond split - fan out to 3 parallel timeframes\nlogger.info('Diamond split: Sequential extraction with rate limiting...')\n# Each branch fetches different timeframe data",
+          "execution_time_ms": null,
+          "notes": "Diamond split decision point - branches into 3 parallel timeframe extractions"
+        },
+        {
+          "stage_id": "extract_spot_prices",
+          "stage_number": 3,
+          "stage_name": "Extract Spot Prices",
+          "stage_type": "data_ingestion",
+          "description": "Branch 1: Fetch current spot prices with market cap and 24h volume",
+          "branch_path": "spot_prices",
+          "source": {
+            "type": "api",
+            "endpoint": "/simple/price",
+            "parameters": "vs_currencies=usd&include_market_cap=true&include_24hr_vol=true"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "crypto_id",
+              "symbol",
+              "spot_price_usd",
+              "market_cap",
+              "volume_24h",
+              "change_24h_pct",
+              "last_updated"
+            ]
+          },
+          "code_snippet": "url = 'https://api.coingecko.com/api/v3/simple/price'\nparams = {\n    'ids': 'bitcoin,ethereum,binancecoin,solana,cardano',\n    'vs_currencies': 'usd',\n    'include_market_cap': 'true',\n    'include_24hr_vol': 'true'\n}\nspot_data = requests.get(url, params=params).json()",
+          "execution_time_ms": null,
+          "notes": "Diamond branch 1 - spot price extraction"
+        },
+        {
+          "stage_id": "extract_24h_data",
+          "stage_number": 3,
+          "stage_name": "Extract 24h Hourly Data",
+          "stage_type": "data_ingestion",
+          "description": "Branch 2: Fetch hourly price and volume data for last 24 hours",
+          "branch_path": "hourly_24h",
+          "source": {
+            "type": "api",
+            "endpoint": "/coins/{id}/market_chart",
+            "parameters": "vs_currency=usd&days=1&interval=hourly"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "crypto_id",
+              "symbol",
+              "timestamp",
+              "price_usd",
+              "volume"
+            ]
+          },
+          "code_snippet": "for crypto_id in cryptos:\n    url = f'https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart'\n    params = {'vs_currency': 'usd', 'days': '1', 'interval': 'hourly'}\n    data = requests.get(url, params=params).json()\n    hourly_data.extend(process_hourly(data))",
+          "execution_time_ms": null,
+          "notes": "Diamond branch 2 - 24h hourly data extraction"
+        },
+        {
+          "stage_id": "extract_7d_trends",
+          "stage_number": 3,
+          "stage_name": "Extract 7d Daily Trends",
+          "stage_type": "data_ingestion",
+          "description": "Branch 3: Fetch daily price, volume, and market cap for last 7 days",
+          "branch_path": "daily_7d",
+          "source": {
+            "type": "api",
+            "endpoint": "/coins/{id}/market_chart",
+            "parameters": "vs_currency=usd&days=7&interval=daily"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "crypto_id",
+              "symbol",
+              "date",
+              "price_usd",
+              "volume",
+              "market_cap"
+            ]
+          },
+          "code_snippet": "# All 3 branches execute in sequence with rate limiting\nspot_df = fetch_spot_prices()\nhourly_df = fetch_24h_data()\ndaily_df = fetch_7d_trends()",
+          "execution_time_ms": null,
+          "notes": "Diamond branch 3 - 7d daily trend extraction"
+        },
+        {
+          "stage_id": "cross_validate_timeframes",
+          "stage_number": 4,
+          "stage_name": "Cross-Validation (Fan-in)",
+          "stage_type": "data_validation",
+          "description": "Merge all 3 timeframe branches and compare to detect price anomalies",
+          "transformations": [
+            {
+              "operation": "calculate_deviations",
+              "description": "Spot price vs 24h average, spot price vs 7d average"
+            },
+            {
+              "operation": "volume_analysis",
+              "description": "Compare 24h volume against 7d average to detect volume spikes"
+            },
+            {
+              "operation": "volatility_scoring",
+              "description": "Calculate coefficient of variation from 24h price stddev"
+            },
+            {
+              "operation": "trend_consistency",
+              "description": "Check if 24h and 7d trends align or contradict"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "crypto_id",
+              "symbol",
+              "price_deviation_24h_pct",
+              "price_deviation_7d_pct",
+              "volume_deviation_pct",
+              "volatility_score",
+              "trend_24h",
+              "trend_7d",
+              "trend_consistent"
+            ]
+          },
+          "code_snippet": "# Cross-validate all 3 timeframes\nprice_deviation_24h = (spot_price - avg_24h_price) / avg_24h_price * 100\nprice_deviation_7d = (spot_price - avg_7d_price) / avg_7d_price * 100\nvolume_deviation = (volume_24h - avg_7d_volume) / avg_7d_volume * 100\nvolatility_score = (std_24h_price / avg_24h_price) * 100\ntrend_consistent = (trend_24h == trend_7d)",
+          "execution_time_ms": null,
+          "notes": "Critical validation node where 3 data streams converge for correlation analysis"
+        },
+        {
+          "stage_id": "feedback_enrich_spot",
+          "stage_number": 5,
+          "stage_name": "Feedback Loop",
+          "stage_type": "data_enrichment",
+          "description": "Re-enrich spot prices with confidence scores from cross-validation",
+          "transformations": [
+            {
+              "operation": "calculate_confidence",
+              "description": "Confidence score (0-100%) based on cross-validation results"
+            },
+            {
+              "operation": "data_quality_rating",
+              "description": "Classify as high/medium/low/very_low quality"
+            },
+            {
+              "operation": "reliability_grade",
+              "description": "Assign letter grade A-F based on confidence"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "confidence_score",
+              "data_quality",
+              "reliability_rating"
+            ]
+          },
+          "code_snippet": "# FEEDBACK LOOP: Merge spot data with validation metrics\nenriched_spot = spot_df.merge(validation_df, on=['crypto_id', 'symbol'])\n\n# Calculate confidence based on deviations\nconfidence = 100\nif abs(price_deviation_24h) > 10: confidence -= 20\nif volatility_score > 5: confidence -= 15\nif not trend_consistent: confidence -= 15\n\nenriched_spot['confidence_score'] = confidence\nenriched_spot['data_quality'] = 'high' if confidence >= 80 else 'medium'",
+          "execution_time_ms": null,
+          "notes": "Unique feedback loop pattern - enriches upstream data with downstream analysis"
+        },
+        {
+          "stage_id": "classify_anomalies",
+          "stage_number": 6,
+          "stage_name": "Classify Anomalies & Risk",
+          "stage_type": "data_transformation",
+          "description": "Detect market manipulation patterns and assign risk scores",
+          "transformations": [
+            {
+              "operation": "flash_crash_detection",
+              "description": "Flag sudden price drops >10% as high risk"
+            },
+            {
+              "operation": "pump_detection",
+              "description": "Flag sudden price spikes >15% as potential pump schemes"
+            },
+            {
+              "operation": "volume_manipulation",
+              "description": "Detect abnormal volume patterns (>100% deviation)"
+            },
+            {
+              "operation": "manipulation_scoring",
+              "description": "Composite score combining all risk factors (0-100)"
+            },
+            {
+              "operation": "risk_classification",
+              "description": "Categorize as low/medium/high/critical risk"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "flash_crash_risk",
+              "pump_risk",
+              "volume_manipulation_flag",
+              "manipulation_score",
+              "risk_level",
+              "requires_investigation",
+              "market_sentiment"
+            ]
+          },
+          "code_snippet": "# Anomaly classification\ndf['flash_crash_risk'] = 'high' if price_deviation_24h < -10 else 'low'\ndf['pump_risk'] = 'high' if price_deviation_24h > 15 else 'low'\ndf['volume_manipulation_flag'] = abs(volume_deviation) > 100\n\n# Composite manipulation score\nmanipulation_score = 0\nif abs(price_deviation_24h) > 10: manipulation_score += 30\nif abs(volume_deviation) > 50: manipulation_score += 25\nif volatility_score > 5: manipulation_score += 20\n\ndf['risk_level'] = 'critical' if manipulation_score >= 75 else 'low'",
+          "execution_time_ms": null,
+          "notes": "Security-focused analysis detecting market manipulation and suspicious patterns"
+        },
+        {
+          "stage_id": "merge_final_data",
+          "stage_number": 7,
+          "stage_name": "Merge & Final Enrichment",
+          "stage_type": "data_aggregation",
+          "description": "Combine all data streams with metadata and calculate final metrics",
+          "transformations": [
+            {
+              "operation": "merge_with_metadata",
+              "description": "Join anomaly data with crypto metadata (scores, rankings)"
+            },
+            {
+              "operation": "price_range_analysis",
+              "description": "Add 24h and 7d high/low, calculate position within range"
+            },
+            {
+              "operation": "temporal_context",
+              "description": "Integrate hourly and daily data insights"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "All previous columns plus:",
+              "price_24h_high",
+              "price_24h_low",
+              "price_7d_high",
+              "price_7d_low",
+              "position_in_24h_range_pct",
+              "position_in_7d_range_pct",
+              "market_cap_rank",
+              "coingecko_score",
+              "processed_at"
+            ]
+          },
+          "code_snippet": "# Merge all streams\nfinal_df = anomalies_df.merge(metadata_df, on=['crypto_id', 'symbol'])\n\n# Calculate price position within ranges\nfinal_df['position_in_24h_range_pct'] = (\n    (spot_price - price_24h_low) / (price_24h_high - price_24h_low) * 100\n)\n\n# Add timestamp\nfinal_df['processed_at'] = pd.Timestamp.now()",
+          "execution_time_ms": null,
+          "notes": "Final consolidation of all parallel streams and enrichments"
+        },
+        {
+          "stage_id": "load_crypto_data",
+          "stage_number": 8,
+          "stage_name": "Load to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load cryptocurrency market analysis to database",
+          "destination": {
+            "table_name": "crypto_market_analysis",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "symbol",
+              "risk_level",
+              "requires_investigation",
+              "data_quality",
+              "processed_at"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS crypto_market_analysis CASCADE'))\n    conn.commit()\n\n# Load data\nfinal_df.to_sql('crypto_market_analysis', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['symbol', 'risk_level', 'requires_investigation', 'processed_at']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_crypto_{col} ON crypto_market_analysis({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Market surveillance database with indexes optimized for risk filtering and time-series queries"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "crypto_market_analysis",
+        "record_count": null
+      }
+    },
+    {
+      "pipeline_id": "csv_kaggle",
+      "pipeline_name": "CSV to PostgreSQL Multi-Dataset Pipeline",
+      "description": "Extract multiple CSV datasets from Kaggle, transform and merge for cross-analysis, and load to PostgreSQL",
+      "source_type": "file",
+      "status": "active",
+      "last_run": null,
+      "detailed_explanation": {
+        "overview": "This intermediate pipeline demonstrates working with multiple CSV datasets from Kaggle, transforming them independently, then merging for cross-analysis. It shows how to handle different data schemas and create analytical relationships between disparate datasets.",
+        "what_you_learn": [
+          "Loading multiple CSV datasets from Kaggle using kagglehub",
+          "Applying dataset-specific transformations independently",
+          "Merging and cross-referencing data from different sources",
+          "Creating fact and dimension tables in PostgreSQL"
+        ],
+        "stage_details": [
+          {
+            "stage_number": 1,
+            "what_happens": "The pipeline downloads a customer shopping dataset from Kaggle containing retail transaction data with customer demographics, product categories, prices, quantities, and purchase dates.",
+            "why_it_matters": "Real-world analytics often requires combining data from multiple sources. Learning to handle diverse CSV formats from Kaggle prepares you for varied data integration scenarios.",
+            "technical_note": "Uses kagglehub to authenticate and download CSV data, handling potential encoding and delimiter variations."
+          },
+          {
+            "stage_number": 2,
+            "what_happens": "A second dataset containing video game sales data is downloaded, including game titles, platforms, release years, genres, and regional sales figures.",
+            "why_it_matters": "Working with multiple independent datasets teaches data source management and prepares you for scenarios where insights require combining information from different domains.",
+            "technical_note": "Parallel extraction pattern where both datasets are fetched independently before any transformations begin."
+          },
+          {
+            "stage_number": 3,
+            "what_happens": "Shopping data undergoes specific transformations: date parsing to extract temporal features (year, month, day of week), calculating total transaction amounts, categorizing customers by age groups, and creating spending tiers.",
+            "why_it_matters": "Different datasets need different transformations. Retail data requires temporal analysis and customer segmentation, demonstrating domain-specific data preparation.",
+            "technical_note": "Uses pandas date operations, arithmetic calculations, and binning functions to create derived features from raw transaction data."
+          },
+          {
+            "stage_number": 4,
+            "what_happens": "Video game sales data receives its own transformations: calculating global sales totals from regional figures, categorizing games by sales performance, adding decade classifications, and identifying primary market regions.",
+            "why_it_matters": "Entertainment industry data has unique requirements like trend analysis across decades and market comparison. This shows how to adapt transformations to industry-specific needs.",
+            "technical_note": "Uses aggregation operations, categorical binning, and comparative logic to derive gaming industry insights."
+          },
+          {
+            "stage_number": 5,
+            "what_happens": "Both datasets are merged into a cross-analysis table that maps customer age groups to gaming decades, combining shopping behavior metrics with gaming industry trends to enable demographic-entertainment correlations.",
+            "why_it_matters": "Data fusion creates insights impossible from single sources. Connecting customer demographics with entertainment trends enables questions like 'which age groups prefer games from which eras?'",
+            "technical_note": "Uses pandas groupby aggregations followed by cartesian product merge to create all combinations of age groups and gaming decades."
+          },
+          {
+            "stage_number": 6,
+            "what_happens": "Transformed shopping data loads into a dedicated PostgreSQL table with indexes on key columns like invoice_date, age_group, and spending_tier for efficient querying.",
+            "why_it_matters": "Separate fact tables preserve raw analytical data while enabling fast queries. Shopping data can be analyzed independently or joined with other tables.",
+            "technical_note": "Uses SQLAlchemy with bulk insert and strategic indexing on commonly filtered columns."
+          },
+          {
+            "stage_number": 7,
+            "what_happens": "Video game sales data loads into its own PostgreSQL table with indexes optimized for gaming industry queries (platform, year, sales_category).",
+            "why_it_matters": "Domain-specific tables with appropriate indexes enable specialized analytics. Gaming queries often filter by platform and release year, so indexing these columns improves performance.",
+            "technical_note": "Creates composite indexes that support common query patterns like 'show top games by platform for a specific decade'."
+          },
+          {
+            "stage_number": 8,
+            "what_happens": "The merged cross-analysis dataset loads into a third table that connects customer demographics with gaming trends, creating a star schema for analytical queries.",
+            "why_it_matters": "Analytics tables enable business intelligence queries that span multiple data domains, supporting dashboards and reports that reveal correlations between customer behavior and entertainment preferences.",
+            "technical_note": "Implements a simple star schema where the merged table acts as a fact table connecting customer and gaming dimension tables."
+          }
+        ]
+      },
+      "stages": [
+        {
+          "stage_id": "extract_shopping_data",
+          "stage_number": 1,
+          "stage_name": "Extract Shopping Data from Kaggle",
+          "stage_type": "data_ingestion",
+          "description": "Download customer shopping dataset from Kaggle containing retail transactions",
+          "source": {
+            "type": "kagglehub",
+            "dataset_id": "mehmettahiraslan/customer-shopping-dataset",
+            "file_format": "csv"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "invoice_no",
+              "customer_id",
+              "gender",
+              "age",
+              "category",
+              "quantity",
+              "price",
+              "payment_method",
+              "invoice_date",
+              "shopping_mall"
+            ]
+          },
+          "code_snippet": "import kagglehub\nimport pandas as pd\nimport os\n\n# Download dataset\npath = kagglehub.dataset_download('mehmettahiraslan/customer-shopping-dataset')\n\n# Find and read CSV\ncsv_files = [f for f in os.listdir(path) if f.endswith('.csv')]\ncsv_path = os.path.join(path, csv_files[0])\nshopping_df = pd.read_csv(csv_path).head(200)",
+          "execution_time_ms": null,
+          "notes": "Customer shopping data with demographics and transaction details"
+        },
+        {
+          "stage_id": "extract_games_data",
+          "stage_number": 2,
+          "stage_name": "Extract Video Game Sales from Kaggle",
+          "stage_type": "data_ingestion",
+          "description": "Download video game sales dataset from Kaggle with regional sales data",
+          "source": {
+            "type": "kagglehub",
+            "dataset_id": "gregorut/videogamesales",
+            "file_format": "csv"
+          },
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "rank",
+              "name",
+              "platform",
+              "year",
+              "genre",
+              "publisher",
+              "na_sales",
+              "eu_sales",
+              "jp_sales",
+              "other_sales",
+              "global_sales"
+            ]
+          },
+          "code_snippet": "import kagglehub\nimport pandas as pd\nimport os\n\n# Download dataset\npath = kagglehub.dataset_download('gregorut/videogamesales')\n\n# Find and read CSV\ncsv_files = [f for f in os.listdir(path) if f.endswith('.csv')]\ncsv_path = os.path.join(path, csv_files[0])\ngames_df = pd.read_csv(csv_path).head(200)",
+          "execution_time_ms": null,
+          "notes": "Video game sales data with platform, genre, and regional sales figures"
+        },
+        {
+          "stage_id": "transform_shopping",
+          "stage_number": 3,
+          "stage_name": "Transform Shopping Data",
+          "stage_type": "data_transformation",
+          "description": "Parse dates, calculate totals, categorize customers, and create spending tiers",
+          "transformations": [
+            {
+              "operation": "rename_columns",
+              "description": "Convert column names to snake_case format"
+            },
+            {
+              "operation": "parse_dates",
+              "description": "Convert invoice_date to datetime and extract year, month, day_of_week"
+            },
+            {
+              "operation": "calculate_totals",
+              "description": "Calculate total_amount from price × quantity"
+            },
+            {
+              "operation": "age_grouping",
+              "description": "Categorize customers into age groups (Under 18, 18-30, 31-45, 46-60, Over 60)"
+            },
+            {
+              "operation": "spending_tiers",
+              "description": "Classify transactions as Low, Medium, High, or Premium based on total_amount"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "year",
+              "month",
+              "day_of_week",
+              "total_amount",
+              "age_group",
+              "spending_tier"
+            ]
+          },
+          "code_snippet": "# Rename to snake_case\nshopping_df.columns = [col.lower().replace(' ', '_') for col in shopping_df.columns]\n\n# Parse dates\nshopping_df['invoice_date'] = pd.to_datetime(shopping_df['invoice_date'])\nshopping_df['year'] = shopping_df['invoice_date'].dt.year\nshopping_df['month'] = shopping_df['invoice_date'].dt.month\nshopping_df['day_of_week'] = shopping_df['invoice_date'].dt.day_name()\n\n# Calculate total\nshopping_df['total_amount'] = shopping_df['price'] * shopping_df['quantity']\n\n# Age groups\nshopping_df['age_group'] = pd.cut(shopping_df['age'],\n    bins=[0, 18, 30, 45, 60, 100],\n    labels=['Under 18', '18-30', '31-45', '46-60', 'Over 60'])\n\n# Spending tiers\nshopping_df['spending_tier'] = pd.cut(shopping_df['total_amount'],\n    bins=[0, 50, 200, 500, float('inf')],\n    labels=['Low', 'Medium', 'High', 'Premium'])",
+          "execution_time_ms": null,
+          "notes": "Shopping data enriched with temporal features and customer segmentation"
+        },
+        {
+          "stage_id": "transform_games",
+          "stage_number": 4,
+          "stage_name": "Transform Video Game Sales",
+          "stage_type": "data_transformation",
+          "description": "Calculate global sales, categorize performance, add decade classification, identify primary markets",
+          "transformations": [
+            {
+              "operation": "rename_columns",
+              "description": "Convert column names to snake_case format"
+            },
+            {
+              "operation": "calculate_global_sales",
+              "description": "Sum regional sales if global_sales column missing"
+            },
+            {
+              "operation": "sales_categories",
+              "description": "Classify games as Niche, Moderate, Popular, or Blockbuster"
+            },
+            {
+              "operation": "decade_classification",
+              "description": "Group games by decade (1980s, 1990s, 2000s, 2010s)"
+            },
+            {
+              "operation": "primary_market",
+              "description": "Identify region with highest sales for each game"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "new_columns": [
+              "sales_category",
+              "decade",
+              "primary_market"
+            ]
+          },
+          "code_snippet": "# Rename to snake_case\ngames_df.columns = [col.lower().replace(' ', '_') for col in games_df.columns]\n\n# Calculate global sales if needed\nif 'global_sales' not in games_df.columns:\n    sales_cols = [col for col in games_df.columns if 'sales' in col]\n    games_df['global_sales'] = games_df[sales_cols].sum(axis=1)\n\n# Sales categories\ngames_df['sales_category'] = pd.cut(games_df['global_sales'],\n    bins=[0, 0.5, 2, 5, float('inf')],\n    labels=['Niche', 'Moderate', 'Popular', 'Blockbuster'])\n\n# Decade classification\ngames_df['year'] = pd.to_numeric(games_df['year'], errors='coerce')\ngames_df['decade'] = (games_df['year'] // 10 * 10).astype('Int64')\n\n# Primary market\nregional_cols = [c for c in games_df.columns if 'sales' in c and c != 'global_sales']\ngames_df['primary_market'] = games_df[regional_cols].idxmax(axis=1).str.replace('_sales', '')",
+          "execution_time_ms": null,
+          "notes": "Gaming data enriched with performance metrics and market analysis"
+        },
+        {
+          "stage_id": "merge_datasets",
+          "stage_number": 5,
+          "stage_name": "Merge for Cross-Analysis",
+          "stage_type": "data_transformation",
+          "description": "Create analytical dataset combining customer demographics with gaming trends",
+          "transformations": [
+            {
+              "operation": "aggregate_shopping",
+              "description": "Group shopping data by age_group, calculate revenue and transaction metrics"
+            },
+            {
+              "operation": "aggregate_games",
+              "description": "Group gaming data by decade, calculate sales and count metrics"
+            },
+            {
+              "operation": "cross_reference",
+              "description": "Create cartesian product mapping age groups to gaming decades for correlation analysis"
+            }
+          ],
+          "output": {
+            "format": "dataframe",
+            "columns": [
+              "age_group",
+              "decade",
+              "shopping_revenue",
+              "shopping_transactions",
+              "avg_shopping_amount",
+              "gaming_sales_millions",
+              "games_released",
+              "avg_game_sales"
+            ]
+          },
+          "code_snippet": "# Aggregate shopping by age group\nshopping_summary = shopping_df.groupby('age_group').agg({\n    'total_amount': ['sum', 'mean', 'count']\n}).reset_index()\nshopping_summary.columns = ['age_group', 'total_revenue', 'avg_transaction', 'transaction_count']\n\n# Aggregate games by decade\ngames_summary = games_df.groupby('decade').agg({\n    'global_sales': ['sum', 'mean', 'count']\n}).reset_index()\ngames_summary.columns = ['decade', 'total_sales_millions', 'avg_sales', 'game_count']\n\n# Cross-reference mapping\nmerged_df = shopping_summary.merge(games_summary, how='cross')",
+          "execution_time_ms": null,
+          "notes": "Cross-analysis dataset enabling demographic-entertainment correlations"
+        },
+        {
+          "stage_id": "load_shopping_to_postgres",
+          "stage_number": 6,
+          "stage_name": "Load Shopping Data to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load transformed shopping data into dedicated fact table",
+          "destination": {
+            "table_name": "customer_shopping_data",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "invoice_date",
+              "age_group",
+              "spending_tier",
+              "category"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS customer_shopping_data CASCADE'))\n    conn.commit()\n\n# Load data\nshopping_df.to_sql('customer_shopping_data', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['invoice_date', 'age_group', 'spending_tier']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_shopping_{col} ON customer_shopping_data({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Shopping fact table with indexes optimized for temporal and demographic queries"
+        },
+        {
+          "stage_id": "load_games_to_postgres",
+          "stage_number": 7,
+          "stage_name": "Load Video Game Sales to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load transformed gaming data into dedicated dimension table",
+          "destination": {
+            "table_name": "video_game_sales",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "platform",
+              "year",
+              "decade",
+              "sales_category",
+              "genre"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS video_game_sales CASCADE'))\n    conn.commit()\n\n# Load data\ngames_df.to_sql('video_game_sales', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    for col in ['platform', 'year', 'decade', 'sales_category']:\n        conn.execute(text(f'CREATE INDEX IF NOT EXISTS idx_games_{col} ON video_game_sales({col})'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Gaming dimension table with indexes for platform and temporal analysis"
+        },
+        {
+          "stage_id": "load_merged_to_postgres",
+          "stage_number": 8,
+          "stage_name": "Load Merged Analysis to PostgreSQL",
+          "stage_type": "data_loading",
+          "description": "Load cross-analysis dataset connecting demographics with entertainment trends",
+          "destination": {
+            "table_name": "demographic_gaming_analysis",
+            "write_mode": "replace",
+            "create_indexes": true,
+            "index_columns": [
+              "age_group",
+              "decade"
+            ]
+          },
+          "code_snippet": "from sqlalchemy import create_engine, text\nimport os\n\nengine = create_engine(os.environ['AIVEN_PG_URI'])\n\n# Drop existing table\nwith engine.connect() as conn:\n    conn.execute(text('DROP TABLE IF EXISTS demographic_gaming_analysis CASCADE'))\n    conn.commit()\n\n# Load data\nmerged_df.to_sql('demographic_gaming_analysis', engine, if_exists='replace', index=False)\n\n# Create indexes\nwith engine.connect() as conn:\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_demo_age ON demographic_gaming_analysis(age_group)'))\n    conn.execute(text('CREATE INDEX IF NOT EXISTS idx_demo_decade ON demographic_gaming_analysis(decade)'))\n    conn.commit()",
+          "execution_time_ms": null,
+          "notes": "Cross-analysis fact table implementing star schema for BI queries"
+        }
+      ],
+      "total_execution_time_ms": null,
+      "final_output": {
+        "database_table": "customer_shopping_data, video_game_sales, demographic_gaming_analysis",
+        "record_count": null
+      }
     }
   ],
   "visualization_settings": {

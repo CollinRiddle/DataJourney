@@ -26,7 +26,9 @@ pipeline_table_map = {
     'weather_analytics': 'weather_analytics',
     'hackernews_scraper': 'hackernews_posts',
     'network_traffic': 'network_traffic_analysis',
-    'stock_market': 'stock_market_analytics'
+    'stock_market': 'stock_market_analytics',
+    'crypto_market': 'crypto_market_analysis',
+    'csv_kaggle': 'customer_shopping_data'
 }
 
 # Create output directory if it doesn't exist

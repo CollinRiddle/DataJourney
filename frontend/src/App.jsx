@@ -7,6 +7,7 @@ function App() {
   const [showHome, setShowHome] = useState(true);
   const [selectedComplexity, setSelectedComplexity] = useState("all");
   const [selectedTags, setSelectedTags] = useState([]);
+  const mainRef = useRef(null);
 
   // Fetch pipelines from the backend
   useEffect(() => {
@@ -25,13 +26,39 @@ function App() {
       });
   }, []);
 
-  // Stage colors based on type
-  const stageColors = {
-    data_ingestion: "#10B981",
-    data_transformation: "#F59E0B",
-    data_loading: "#8B5CF6",
-    data_cleaning: "#3B82F6",
-    data_branching: "#EC4899",
+  // Define color palette for stage visualization
+  const colorPalette = [
+    "#10B981", // Green
+    "#F59E0B", // Orange
+    "#8B5CF6", // Purple
+    "#3B82F6", // Blue
+    "#EC4899", // Pink
+    "#6366F1", // Indigo
+    "#14B8A6", // Teal
+    "#F97316", // Dark Orange
+    "#EF4444", // Red
+    "#A855F7", // Purple Bright
+    "#84CC16", // Lime
+    "#06B6D4", // Cyan
+  ];
+
+  // Helper function to get stage color
+  // Stages with the same stage_number (parallel) get the same color
+  // Sequential stages get different colors
+  const getStageColor = (pipeline, stage) => {
+    if (!pipeline || !stage) return colorPalette[0];
+    
+    // Special handling for branching stages
+    if (stage.stage_type === 'data_branching') {
+      return "#EC4899"; // Always pink for branch decision points
+    }
+    
+    // Find all unique stage numbers in order
+    const uniqueStageNumbers = [...new Set(pipeline.stages.map(s => s.stage_number))].sort((a, b) => a - b);
+    const stageIndex = uniqueStageNumbers.indexOf(stage.stage_number);
+    
+    // Use modulo to cycle through colors if we have more stages than colors
+    return colorPalette[stageIndex % colorPalette.length];
   };
 
   const handleStageClick = (stage) => {
@@ -43,6 +70,19 @@ function App() {
     setSelectedPipeline(pipeline);
     setSelectedStage(null);
     setShowHome(false);
+    // Scroll main content and window to top on pipeline selection
+    if (mainRef.current) {
+      try {
+        mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (_) {
+        mainRef.current.scrollTop = 0;
+      }
+    }
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (_) {
+      /* no-op */
+    }
   };
 
   // Helper function to get pipeline complexity
@@ -65,6 +105,12 @@ function App() {
     if (pipeline.stages.some(s => s.stage_type === 'data_transformation')) tags.push("Transform");
     if (pipeline.stages.some(s => s.stage_type === 'data_loading')) tags.push("Database");
     return tags;
+  };
+
+  // Helper function to count unique stages (accounts for parallel branches)
+  const getUniqueStageCount = (pipeline) => {
+    const uniqueStageNumbers = new Set(pipeline.stages.map(s => s.stage_number));
+    return uniqueStageNumbers.size;
   };
 
   // Toggle tag selection
@@ -351,7 +397,7 @@ function App() {
                     </span>
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                    {p.stages.length} stages • {p.source_type}
+                    {getUniqueStageCount(p)} stages • {p.source_type}
                   </div>
                 </button>
               );
@@ -371,7 +417,7 @@ function App() {
         </aside>
 
         {/* Main Content */}
-        <main style={{ flex: 1, padding: "2rem", overflowY: "auto" }}>
+        <main ref={mainRef} style={{ flex: 1, padding: "2rem", overflowY: "auto" }}>
           {showHome ? (
             <HomeView />
           ) : selectedPipeline ? (
@@ -379,7 +425,7 @@ function App() {
               pipeline={selectedPipeline}
               selectedStage={selectedStage}
               onStageClick={handleStageClick}
-              stageColors={stageColors}
+              getStageColor={getStageColor}
             />
           ) : (
             <div style={{ textAlign: "center", marginTop: "4rem" }}>
@@ -731,7 +777,9 @@ function DataPreview({ pipelineId, pipelineName }) {
           setError(result.error);
           setData([]);
         } else {
-          setData(result.data || []);
+          // Ensure data is always an array
+          const dataArray = Array.isArray(result.data) ? result.data : [];
+          setData(dataArray);
         }
         setLastLoadedAt(new Date());
         setLoading(false);
@@ -739,6 +787,7 @@ function DataPreview({ pipelineId, pipelineName }) {
       .catch(err => {
         console.error('Error fetching pipeline data:', err);
         setError('Failed to fetch data from server');
+        setData([]);
         setLoading(false);
       });
   };
@@ -748,8 +797,6 @@ function DataPreview({ pipelineId, pipelineName }) {
     fetchData();
   }, [pipelineId]);
 
-  const displayData = data.slice(displayStart, displayStart + rowsPerPage);
-  
   if (loading) {
     return (
       <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
@@ -778,8 +825,11 @@ function DataPreview({ pipelineId, pipelineName }) {
       </div>
     );
   }
-  
-  const columns = Object.keys(data[0]);
+
+  // Ensure data is an array before slicing
+  const safeData = Array.isArray(data) ? data : [];
+  const displayData = safeData.slice(displayStart, displayStart + rowsPerPage);
+  const columns = safeData.length > 0 ? Object.keys(safeData[0]) : [];
   
   return (
     <div style={{ width: '100%' }}>
@@ -826,7 +876,7 @@ function DataPreview({ pipelineId, pipelineName }) {
           textAlign: 'center'
         }}>
           <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Total Records</div>
-          <div style={{ color: '#667eea', fontSize: '1.5rem', fontWeight: '600' }}>{data.length}</div>
+          <div style={{ color: '#667eea', fontSize: '1.5rem', fontWeight: '600' }}>{safeData.length}</div>
         </div>
         <div style={{
           background: 'rgba(102, 126, 234, 0.1)',
@@ -929,7 +979,7 @@ function DataPreview({ pipelineId, pipelineName }) {
         color: '#9ca3af'
       }}>
         <div>
-          Showing rows {displayStart + 1} to {Math.min(displayStart + rowsPerPage, data.length)} of {data.length}
+          Showing rows {displayStart + 1} to {Math.min(displayStart + rowsPerPage, safeData.length)} of {safeData.length}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
@@ -949,12 +999,12 @@ function DataPreview({ pipelineId, pipelineName }) {
             ← Previous
           </button>
           <button
-            onClick={() => setDisplayStart(Math.min(data.length - rowsPerPage, displayStart + rowsPerPage))}
-            disabled={displayStart + rowsPerPage >= data.length}
+            onClick={() => setDisplayStart(Math.min(safeData.length - rowsPerPage, displayStart + rowsPerPage))}
+            disabled={displayStart + rowsPerPage >= safeData.length}
             style={{
-              background: displayStart + rowsPerPage >= data.length ? 'rgba(255, 255, 255, 0.05)' : 'rgba(102, 126, 234, 0.2)',
+              background: displayStart + rowsPerPage >= safeData.length ? 'rgba(255, 255, 255, 0.05)' : 'rgba(102, 126, 234, 0.2)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: displayStart + rowsPerPage >= data.length ? '#6b7280' : '#a5b4fc',
+              color: displayStart + rowsPerPage >= safeData.length ? '#6b7280' : '#a5b4fc',
               padding: '0.5rem 1rem',
               borderRadius: '6px',
               cursor: displayStart + rowsPerPage >= data.length ? 'not-allowed' : 'pointer',
@@ -970,7 +1020,7 @@ function DataPreview({ pipelineId, pipelineName }) {
   );
 }
 
-function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
+function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) {
   const hasBranching = pipeline.stages.some(s => s.stage_type === 'data_branching');
   const [zoom, setZoom] = useState(1);
   const [activeTab, setActiveTab] = useState('flow');
@@ -1209,17 +1259,19 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
 
               {hasBranching ? (
                 <BranchingDAG
+                  pipeline={pipeline}
                   stages={pipeline.stages}
                   selectedStage={selectedStage}
                   onStageClick={onStageClick}
-                  stageColors={stageColors}
+                  getStageColor={getStageColor}
                 />
               ) : (
                 <LinearDAG
+                  pipeline={pipeline}
                   stages={pipeline.stages}
                   selectedStage={selectedStage}
                   onStageClick={onStageClick}
-                  stageColors={stageColors}
+                  getStageColor={getStageColor}
                 />
               )}
             </div>
@@ -1229,7 +1281,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
           {selectedStage && (
             <StageDetailsPanel
               stage={selectedStage}
-              stageColor={stageColors[selectedStage.stage_type]}
+              stageColor={getStageColor(pipeline, selectedStage)}
               onClose={() => onStageClick(selectedStage)}
             />
           )}
@@ -1326,7 +1378,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, stageColors }) {
             
             {pipeline.detailed_explanation.stage_details.map((stageDetail, idx) => {
               const stageInfo = pipeline.stages.find(s => s.stage_number === stageDetail.stage_number);
-              const stageColor = stageColors[stageInfo?.stage_type] || '#667eea';
+              const stageColor = getStageColor(pipeline, stageInfo) || '#667eea';
               
               return (
                 <div
@@ -1490,7 +1542,7 @@ function DynamicArrow({ start, end, color = "#4b5563" }) {
 }
 
 // Linear DAG (for non-branching pipelines)
-function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
+function LinearDAG({ pipeline, stages, selectedStage, onStageClick, getStageColor }) {
   const [nodePositions, setNodePositions] = useState({});
   const containerRef = useRef(null);
 
@@ -1558,7 +1610,7 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
             stage={stage}
             isSelected={selectedStage?.stage_id === stage.stage_id}
             onClick={() => onStageClick(stage)}
-            color={stageColors[stage.stage_type]}
+            color={getStageColor(pipeline, stage)}
           />
         </div>
       ))}
@@ -1572,7 +1624,7 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
               key={`arrow-${stage.stage_id}`}
               start={startPos}
               end={endPos}
-              color={stageColors[stage.stage_type]}
+              color={getStageColor(pipeline, stage)}
             />
           );
         }
@@ -1582,16 +1634,32 @@ function LinearDAG({ stages, selectedStage, onStageClick, stageColors }) {
   );
 }
 
-// // Branching DAG (for pipelines with branches)
-function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
+// Branching DAG (for pipelines with branches)
+function BranchingDAG({ pipeline, stages, selectedStage, onStageClick, getStageColor }) {
   const [nodePositions, setNodePositions] = useState({});
   const containerRef = useRef(null);
 
-  // Find branch point and merge point
-  const branchIndex = stages.findIndex(s => s.stage_type === 'data_branching');
-  const beforeBranch = stages.slice(0, branchIndex + 1);
-  const branchStages = stages.slice(branchIndex + 1, -1);
-  const mergeStage = stages[stages.length - 1];
+  // Find the branching stage
+  const branchStage = stages.find(s => s.stage_type === 'data_branching');
+  if (!branchStage) {
+    // Fallback to linear if no branching stage found
+    return <LinearDAG pipeline={pipeline} stages={stages} selectedStage={selectedStage} onStageClick={onStageClick} getStageColor={getStageColor} />;
+  }
+
+  // Stages before the branch point
+  const beforeBranch = stages.filter(s => s.stage_number < branchStage.stage_number);
+  
+  // Find the parallel branch stages (they have the same stage_number and branch_path property)
+  const parallelStages = stages.filter(s => 
+    s.stage_number === branchStage.stage_number + 1 && s.branch_path
+  );
+  
+  // Find the merge point - first stage after parallel stages that doesn't have branch_path
+  const mergePointNumber = branchStage.stage_number + 2;
+  const mergeStage = stages.find(s => s.stage_number === mergePointNumber);
+  
+  // Remaining stages after merge
+  const afterMerge = stages.filter(s => s.stage_number > mergePointNumber);
 
   // Update node positions when stages change or on resize
   useEffect(() => {
@@ -1615,13 +1683,11 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
           }
         });
         setNodePositions(positions);
-      }, 100); // Small delay to ensure DOM is ready
+      }, 100);
     };
 
-    // Initial position update
     updatePositions();
 
-    // Update positions on resize
     observer = new ResizeObserver(() => {
       requestAnimationFrame(updatePositions);
     });
@@ -1632,11 +1698,8 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
 
     window.addEventListener('load', updatePositions);
 
-    // Cleanup
     return () => {
-      if (observer) {
-        observer.disconnect();
-      }
+      if (observer) observer.disconnect();
       window.removeEventListener('load', updatePositions);
     };
   }, [stages]);
@@ -1647,12 +1710,11 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
       padding: "4rem",
       minHeight: "200px",
     }}>
-      {/* All stages in a single horizontal line */}
       <div style={{ 
         display: "flex",
         alignItems: "center",
         gap: "4rem",
-        justifyContent: "center",
+        justifyContent: "flex-start",
         position: "relative",
       }}>
         {/* Stages before branch */}
@@ -1666,21 +1728,33 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
               stage={stage}
               isSelected={selectedStage?.stage_id === stage.stage_id}
               onClick={() => onStageClick(stage)}
-              color={stageColors[stage.stage_type]}
+              color={getStageColor(pipeline, stage)}
             />
           </div>
         ))}
 
-        {/* Branch stages - vertical stack */}
+        {/* Branch point */}
+        <div 
+          id={`stage-${branchStage.stage_id}`}
+          style={{ position: "relative" }}
+        >
+          <StageNode 
+            stage={branchStage}
+            isSelected={selectedStage?.stage_id === branchStage.stage_id}
+            onClick={() => onStageClick(branchStage)}
+            color={getStageColor(pipeline, branchStage)}
+          />
+        </div>
+
+        {/* Parallel branch stages - vertical stack */}
         <div style={{ 
           display: "flex",
           flexDirection: "column",
           gap: "2rem",
           position: "relative",
           justifyContent: "center",
-          margin: "0 2rem"
         }}>
-          {branchStages.map((stage) => (
+          {parallelStages.map((stage) => (
             <div 
               key={stage.stage_id}
               id={`stage-${stage.stage_id}`}
@@ -1690,7 +1764,7 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
                 stage={stage}
                 isSelected={selectedStage?.stage_id === stage.stage_id}
                 onClick={() => onStageClick(stage)}
-                color={stageColors[stage.stage_type]}
+                color={getStageColor(pipeline, stage)}
                 branchLabel={stage.branch_path}
               />
             </div>
@@ -1698,17 +1772,35 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
         </div>
 
         {/* Merge stage */}
-        <div 
-          id={`stage-${mergeStage.stage_id}`}
-          style={{ position: "relative" }}
-        >
-          <StageNode 
-            stage={mergeStage}
-            isSelected={selectedStage?.stage_id === mergeStage.stage_id}
-            onClick={() => onStageClick(mergeStage)}
-            color={stageColors[mergeStage.stage_type]}
-          />
-        </div>
+        {mergeStage && (
+          <div 
+            id={`stage-${mergeStage.stage_id}`}
+            style={{ position: "relative" }}
+          >
+            <StageNode 
+              stage={mergeStage}
+              isSelected={selectedStage?.stage_id === mergeStage.stage_id}
+              onClick={() => onStageClick(mergeStage)}
+              color={getStageColor(pipeline, mergeStage)}
+            />
+          </div>
+        )}
+
+        {/* Stages after merge */}
+        {afterMerge.map((stage) => (
+          <div 
+            key={stage.stage_id}
+            id={`stage-${stage.stage_id}`}
+            style={{ position: "relative" }}
+          >
+            <StageNode 
+              stage={stage}
+              isSelected={selectedStage?.stage_id === stage.stage_id}
+              onClick={() => onStageClick(stage)}
+              color={getStageColor(pipeline, stage)}
+            />
+          </div>
+        ))}
       </div>
 
       {/* Draw arrows */}
@@ -1722,35 +1814,74 @@ function BranchingDAG({ stages, selectedStage, onStageClick, stageColors }) {
               key={`arrow-${stage.stage_id}`}
               start={startPos}
               end={endPos}
-              color={stageColors[stage.stage_type]}
+              color={getStageColor(pipeline, stage)}
             />
           );
         }
         return null;
       })}
 
-      {/* Branch arrows */}
-      {branchStages.map((stage) => {
-        const branchStart = nodePositions[beforeBranch[beforeBranch.length - 1].stage_id];
-        const branchPos = nodePositions[stage.stage_id];
-        const mergePos = nodePositions[mergeStage.stage_id];
-        
-        return branchStart && branchPos && mergePos ? (
-          <React.Fragment key={`branch-${stage.stage_id}`}>
-            {/* Arrow from branch point to branch stage */}
-            <DynamicArrow
-              start={branchStart}
-              end={branchPos}
-              color="#EC4899"
-            />
-            {/* Arrow from branch stage to merge point */}
-            <DynamicArrow
-              start={branchPos}
-              end={mergePos}
-              color="#8B5CF6"
-            />
-          </React.Fragment>
+      {/* Arrow from last pre-branch to branch point */}
+      {beforeBranch.length > 0 && (
+        <DynamicArrow
+          key="arrow-to-branch"
+          start={nodePositions[beforeBranch[beforeBranch.length - 1].stage_id]}
+          end={nodePositions[branchStage.stage_id]}
+          color={getStageColor(pipeline, beforeBranch[beforeBranch.length - 1])}
+        />
+      )}
+
+      {/* Arrows from branch point to parallel stages */}
+      {parallelStages.map((stage) => {
+        const branchPos = nodePositions[branchStage.stage_id];
+        const stagePos = nodePositions[stage.stage_id];
+        return branchPos && stagePos ? (
+          <DynamicArrow
+            key={`arrow-branch-to-${stage.stage_id}`}
+            start={branchPos}
+            end={stagePos}
+            color="#EC4899"
+          />
         ) : null;
+      })}
+
+      {/* Arrows from parallel stages to merge point */}
+      {mergeStage && parallelStages.map((stage) => {
+        const stagePos = nodePositions[stage.stage_id];
+        const mergePos = nodePositions[mergeStage.stage_id];
+        return stagePos && mergePos ? (
+          <DynamicArrow
+            key={`arrow-${stage.stage_id}-to-merge`}
+            start={stagePos}
+            end={mergePos}
+            color="#8B5CF6"
+          />
+        ) : null;
+      })}
+
+      {/* Arrows for stages after merge */}
+      {mergeStage && afterMerge.length > 0 && (
+        <DynamicArrow
+          key="arrow-merge-to-next"
+          start={nodePositions[mergeStage.stage_id]}
+          end={nodePositions[afterMerge[0].stage_id]}
+          color={getStageColor(pipeline, mergeStage)}
+        />
+      )}
+      {afterMerge.map((stage, index) => {
+        if (index < afterMerge.length - 1) {
+          const startPos = nodePositions[stage.stage_id];
+          const endPos = nodePositions[afterMerge[index + 1].stage_id];
+          return (
+            <DynamicArrow
+              key={`arrow-after-${stage.stage_id}`}
+              start={startPos}
+              end={endPos}
+              color={getStageColor(pipeline, stage)}
+            />
+          );
+        }
+        return null;
       })}
     </div>
   );
