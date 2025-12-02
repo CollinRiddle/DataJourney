@@ -36,17 +36,7 @@ def serve_vite_svg():
     assert app.static_folder is not None
     return send_from_directory(app.static_folder, 'vite.svg')
 
-# Catch-all route for client-side routing (must be last)
-@app.route('/<path:path>')
-def catch_all(path):
-    """Catch-all for client-side routing"""
-    # If the file exists in static folder, serve it
-    assert app.static_folder is not None
-    file_path = os.path.join(app.static_folder, path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(app.static_folder, path)
-    # Otherwise, serve index.html for client-side routing
-    return send_from_directory(app.static_folder, 'index.html')
+# (moved to end) Catch-all route for client-side routing (must be last)
 
 @app.route('/api/pipelines')
 def get_pipelines():
@@ -162,3 +152,15 @@ def debug_info():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+# Catch-all route for client-side routing (must be last)
+@app.route('/<path:path>')
+def catch_all(path):
+    """Catch-all for client-side routing"""
+    # If the file exists in static folder, serve it
+    assert app.static_folder is not None
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+    # Otherwise, serve index.html for client-side routing
+    return send_from_directory(app.static_folder, 'index.html')
