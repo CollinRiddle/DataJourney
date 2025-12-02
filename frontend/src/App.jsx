@@ -822,8 +822,17 @@ function DataPreview({ pipelineId, pipelineName }) {
     setDisplayStart(0);
 
     fetch(`/api/pipelines/${pipelineId}/data`, { cache: 'no-store' })
-      .then(res => {
+      .then(async (res) => {
         console.log(`Response for ${pipelineId}:`, res.status, res.statusText);
+        // Handle non-OK responses gracefully to avoid JSON parse errors on HTML pages
+        if (!res.ok) {
+          try {
+            const errJson = await res.json();
+            return errJson;
+          } catch (_) {
+            return { error: `HTTP ${res.status} ${res.statusText}` };
+          }
+        }
         return res.json();
       })
       .then(result => {

@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 import os
 import sys
@@ -66,7 +66,8 @@ def get_pipelines():
 @app.route('/api/pipelines/<pipeline_id>/data')
 def get_pipeline_data(pipeline_id):
     """API route to fetch actual data from PostgreSQL for a specific pipeline"""
-    from backend.utils.connection import get_connection
+    # Import using backend-relative path; `basedir` is on sys.path
+    from utils.connection import get_connection
     
     # Map pipeline IDs to their database table names
     pipeline_table_map = {
@@ -153,8 +154,25 @@ def debug_info():
         "static_contents": os.listdir(app.static_folder) if app.static_folder and os.path.exists(app.static_folder) else []
     })
 
+# Simple health check for DB connectivity
+@app.route('/api/health')
+def health():
+    try:
+        from utils.connection import get_connection
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT 1')
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use env-controlled debug; default to False for production compatibility
+    debug_flag = os.getenv('FLASK_DEBUG', '0') == '1'
+    app.run(host='127.0.0.1', port=5000, debug=debug_flag)
 
 # Catch-all route for client-side routing (must be last)
 @app.route('/<path:path>')
@@ -167,3 +185,22 @@ def catch_all(path):
         return send_from_directory(app.static_folder, path)
     # Otherwise, serve index.html for client-side routing
     return send_from_directory(app.static_folder, 'index.html')
+
+# JSON error handlers for API routes to prevent HTML error pages
+@app.errorhandler(404)
+def handle_404(err):
+    try:
+        if request.path.startswith('/api/'):
+            return jsonify({"error": "Not found", "path": request.path}), 404
+    except Exception:
+        pass
+    return "Not Found", 404
+
+@app.errorhandler(500)
+def handle_500(err):
+    try:
+        if request.path.startswith('/api/'):
+            return jsonify({"error": "Internal server error"}), 500
+    except Exception:
+        pass
+    return "Internal Server Error", 500
