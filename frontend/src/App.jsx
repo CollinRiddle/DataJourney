@@ -10,22 +10,18 @@ function App() {
 
   // Fetch pipelines from the backend
   useEffect(() => {
-    console.log("🔍 Fetching pipelines from /api/pipelines...");
     fetch("/api/pipelines")
       .then((res) => {
-        console.log("📡 Response status:", res.status);
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
-        console.log("✅ Pipelines loaded:", data);
         setPipelines(data);
       })
       .catch((err) => {
-        console.error("❌ Error fetching pipelines:", err);
-        console.error("Make sure Flask backend is running on http://127.0.0.1:5000");
+        console.error("Error fetching pipelines:", err);
       });
   }, []);
 
@@ -167,7 +163,7 @@ function App() {
       <div style={{ display: "flex", minHeight: "calc(100vh - 73px)" }}>
         {/* Sidebar - Pipeline List */}
         <aside style={{
-          width: "280px",
+          width: "320px",
           background: "rgba(0, 0, 0, 0.2)",
           backdropFilter: "blur(10px)",
           borderRight: "1px solid rgba(255, 255, 255, 0.1)",
@@ -704,109 +700,6 @@ function InfoCard({ card, onClick }) {
 }
 
 // Generate sample output data for different pipelines
-// COMMENTED OUT - Now fetching real data from PostgreSQL
-/*
-function generateSampleOutputData(pipelineId) {
-  if (pipelineId === 'thailand_hotels') {
-    const locations = ['Bangkok', 'Phuket', 'Chiang Mai', 'Krabi', 'Pattaya', 'Samui'];
-    const conditions = ['excellent', 'good', 'fair', 'poor'];
-    const sustainabilityLevels = ['Platinum', 'Gold', 'Silver', 'Bronze'];
-    
-    return Array.from({ length: 100 }, (_, i) => ({
-      id: i + 1,
-      resort_name: `Resort ${String.fromCharCode(65 + (i % 26))}${Math.floor(i / 26) + 1}`,
-      location: locations[i % locations.length],
-      room_type: i % 3 === 0 ? 'villa' : i % 3 === 1 ? 'suite' : 'standard',
-      bed_details: i % 2 === 0 ? 'king' : 'double',
-      condition: conditions[i % conditions.length],
-      price_usd: Math.round(50 + Math.random() * 450),
-      sustainability_level: sustainabilityLevels[i % sustainabilityLevels.length],
-      rating: (3.5 + Math.random() * 1.5).toFixed(1),
-      review_count: Math.floor(10 + Math.random() * 490)
-    }));
-  }
-  
-  if (pipelineId === 'pokemon_data') {
-    const pokemonNames = ['Bulbasaur', 'Ivysaur', 'Venusaur', 'Charmander', 'Charmeleon', 'Charizard', 'Squirtle', 'Wartortle', 'Blastoise', 'Caterpie'];
-    const types = ['grass', 'fire', 'water', 'electric', 'psychic', 'fighting', 'normal', 'poison', 'flying', 'rock'];
-    const rarities = ['common', 'uncommon', 'rare', 'legendary', 'mythical'];
-    const roles = ['sweeper', 'tank', 'balanced', null];
-    
-    return Array.from({ length: 100 }, (_, i) => ({
-      pokemon_id: i + 1,
-      name: pokemonNames[i % pokemonNames.length] + (i > 9 ? ` ${Math.floor(i / 10)}` : ''),
-      height: (0.3 + Math.random() * 2.5).toFixed(2),
-      weight: (2 + Math.random() * 200).toFixed(1),
-      base_experience: Math.floor(35 + Math.random() * 250),
-      hp: Math.floor(20 + Math.random() * 150),
-      attack: Math.floor(20 + Math.random() * 150),
-      defense: Math.floor(20 + Math.random() * 150),
-      special_attack: Math.floor(20 + Math.random() * 150),
-      special_defense: Math.floor(20 + Math.random() * 150),
-      speed: Math.floor(20 + Math.random() * 140),
-      type_primary: types[i % types.length],
-      type_secondary: types[(i + 1) % types.length],
-      is_legendary: i > 85,
-      rarity: rarities[i % rarities.length],
-      power_score: (150 + Math.random() * 400).toFixed(0),
-      combat_role: roles[i % roles.length]
-    }));
-  }
-  
-  if (pipelineId === 'spacex_launches') {
-    const rockets = ['Falcon 9', 'Falcon Heavy', 'Starship'];
-    const launchpads = ['CCAFS LC-40', 'Kennedy Space Center LC-39A', 'Starbase', 'VAFB SLC-4E'];
-    const outcomes = ['Success', 'Failure', 'Partial Failure'];
-    const complexity = ['Low', 'Medium', 'High'];
-    
-    return Array.from({ length: 100 }, (_, i) => ({
-      flight_number: i + 1,
-      rocket_name: rockets[i % rockets.length],
-      launchpad_name: launchpads[i % launchpads.length],
-      launch_date: new Date(2020 + Math.floor(i / 50), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
-      launch_year: 2020 + Math.floor(i / 50),
-      success: i % 5 !== 0,
-      mission_outcome: i % 5 === 0 ? 'Failure' : 'Success',
-      mission_complexity: complexity[Math.floor(Math.random() * 3)],
-      payloads: Math.floor(1 + Math.random() * 5),
-      crew: Math.floor(Math.random() * 8),
-      cost_per_launch: Math.floor(15 + Math.random() * 85),
-      reliability_score: (0.7 + Math.random() * 0.3).toFixed(2),
-      success_rate_percent: (60 + Math.random() * 40).toFixed(0)
-    }));
-  }
-  
-  if (pipelineId === 'weather_analytics') {
-    const regions = ['North America', 'Europe', 'Asia'];
-    const cities = ['New York', 'London', 'Tokyo'];
-    const weatherTypes = ['rainy', 'hot', 'cold', 'moderate'];
-    const windCategories = ['calm', 'light', 'moderate', 'strong'];
-    
-    return Array.from({ length: 100 }, (_, i) => {
-      const regionIndex = i % 3;
-      const temp = -5 + Math.random() * 40;
-      
-      return {
-        region: regions[regionIndex],
-        city: cities[regionIndex],
-        time: new Date(2024, 10, 1 + Math.floor(i / 3), Math.floor(Math.random() * 24)).toISOString(),
-        date: new Date(2024, 10, 1 + Math.floor(i / 3)).toISOString().split('T')[0],
-        hour: Math.floor(Math.random() * 24),
-        temperature_2m: temp.toFixed(1),
-        relative_humidity_2m: (30 + Math.random() * 60).toFixed(0),
-        precipitation: (Math.random() * 15).toFixed(1),
-        wind_speed_10m: (Math.random() * 30).toFixed(1),
-        weather_type: weatherTypes[Math.floor(Math.random() * 4)],
-        comfort_index: (50 + Math.random() * 50).toFixed(1),
-        wind_category: windCategories[Math.floor(Math.random() * 4)]
-      };
-    });
-  }
-  
-  return [];
-}
-*/
-
 // Data Preview Component
 function DataPreview({ pipelineId, pipelineName }) {
   const [data, setData] = useState([]);
@@ -823,8 +716,6 @@ function DataPreview({ pipelineId, pipelineName }) {
 
     fetch(`/api/pipelines/${pipelineId}/data`, { cache: 'no-store' })
       .then(async (res) => {
-        console.log(`Response for ${pipelineId}:`, res.status, res.statusText);
-        // Handle non-OK responses gracefully to avoid JSON parse errors on HTML pages
         if (!res.ok) {
           try {
             const errJson = await res.json();
@@ -836,7 +727,6 @@ function DataPreview({ pipelineId, pipelineName }) {
         return res.json();
       })
       .then(result => {
-        console.log(`Data for ${pipelineId}:`, result);
         if (result.error) {
           setError(result.error);
           setData([]);

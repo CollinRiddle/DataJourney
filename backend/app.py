@@ -3,8 +3,6 @@ from flask_cors import CORS
 import os
 import sys
 import json
-from decimal import Decimal
-from typing import cast
 
 # Get the absolute path to the backend directory
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -40,8 +38,6 @@ def serve_vite_svg():
     """Serve the vite.svg file"""
     assert app.static_folder is not None
     return send_from_directory(app.static_folder, 'vite.svg')
-
-# (moved to end) Catch-all route for client-side routing (must be last)
 
 @app.route('/api/pipelines')
 def get_pipelines():
@@ -103,35 +99,12 @@ def get_pipeline_data(pipeline_id):
             "data": []
         }), 404
 
-# Debug route to check paths
-@app.route('/api/debug')
-def debug_info():
-    """Debug route to verify paths"""
-    return jsonify({
-        "basedir": basedir,
-        "static_folder": app.static_folder,
-        "static_folder_exists": os.path.exists(app.static_folder) if app.static_folder else False,
-        "index_exists": os.path.exists(os.path.join(app.static_folder, 'index.html')) if app.static_folder else False,
-        "static_contents": os.listdir(app.static_folder) if app.static_folder and os.path.exists(app.static_folder) else []
-    })
-
-# Simple health check for DB connectivity
 @app.route('/api/health')
 def health():
-    try:
-        from utils.connection import get_connection
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute('SELECT 1')
-        cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
+    """Health check endpoint"""
+    return jsonify({"status": "ok"})
 
 if __name__ == '__main__':
-    # Use env-controlled debug; default to False for production compatibility
     debug_flag = os.getenv('FLASK_DEBUG', '0') == '1'
     app.run(host='127.0.0.1', port=5000, debug=debug_flag)
 
