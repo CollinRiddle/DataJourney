@@ -65,11 +65,7 @@ def get_pipelines():
 
 @app.route('/api/pipelines/<pipeline_id>/data')
 def get_pipeline_data(pipeline_id):
-    """API route to fetch actual data from PostgreSQL for a specific pipeline"""
-    # Import using backend-relative path; `basedir` is on sys.path
-    from utils.connection import get_connection
-    
-    # Map pipeline IDs to their database table names
+    """Serve pre-exported data from JSON files"""
     pipeline_table_map = {
         'thailand_hotels': 'hotel_listings',
         'pokemon_data': 'pokemon_data',
@@ -79,68 +75,33 @@ def get_pipeline_data(pipeline_id):
         'network_traffic': 'network_traffic_analysis',
         'stock_market': 'stock_market_analytics'
     }
-    
+
     table_name = pipeline_table_map.get(pipeline_id)
     if not table_name:
         return jsonify({"error": f"Unknown pipeline_id: {pipeline_id}"}), 404
-    
-    try:
-        # Connect to PostgreSQL and fetch data without pandas/numpy (storage-friendly)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {table_name} LIMIT 200")
-        assert cursor.description is not None
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
 
-        data = []
-        for row in rows:
-            record = {}
-            for col, val in zip(columns, row):
-                # Convert Decimals to float for JSON
-                if isinstance(val, Decimal):
-                    val = float(val)
-                # Convert datetime/date/time to ISO string
-                elif hasattr(val, 'isoformat'):
-                    try:
-                        val = val.isoformat()
-                    except Exception:
-                        pass
-                # Decode bytes if any
-                elif isinstance(val, (bytes, bytearray)):
-                    val = val.decode('utf-8', errors='replace')
-                record[col] = val
-            data.append(record)
+    data_file = os.path.join(basedir, 'data_exports', f'{pipeline_id}.json')
 
-        cursor.close()
-        conn.close()
-
-        response = jsonify({
-            "pipeline_id": pipeline_id,
-            "table_name": table_name,
-            "row_count": len(data),
-            "data": data
-        })
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        return response
-    
-    except Exception as e:
-        error_msg = str(e)
-        # Check if table doesn't exist
-        if 'does not exist' in error_msg.lower():
-            return jsonify({
-                "error": f"Table '{table_name}' does not exist. Please run the pipeline first.",
+    if os.path.exists(data_file):
+        try:
+            with open(data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            response = jsonify({
                 "pipeline_id": pipeline_id,
                 "table_name": table_name,
-                "data": []
-            }), 404
-        else:
-            return jsonify({
-                "error": f"Database error: {error_msg}",
-                "pipeline_id": pipeline_id,
-                "data": []
-            }), 500
+                "row_count": len(data),
+                "data": data
+            })
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            return response
+        except Exception as e:
+            return jsonify({"error": f"Error reading data file: {str(e)}"}), 500
+    else:
+        return jsonify({
+            "error": f"Data file not found for {pipeline_id}",
+            "data": []
+        }), 404
 
 # Debug route to check paths
 @app.route('/api/debug')
