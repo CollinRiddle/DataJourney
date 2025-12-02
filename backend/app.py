@@ -66,11 +66,7 @@ def get_pipelines():
 @app.route('/api/pipelines/<pipeline_id>/data')
 def get_pipeline_data(pipeline_id):
     """API route to fetch actual data from PostgreSQL for a specific pipeline"""
-    try:
-        from utils.connection import get_connection
-    except ModuleNotFoundError:
-        # Fallback: try absolute import if relative fails
-        from backend.utils.connection import get_connection
+    from backend.utils.connection import get_connection
     
     # Map pipeline IDs to their database table names
     pipeline_table_map = {
