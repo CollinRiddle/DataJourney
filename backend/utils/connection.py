@@ -1,5 +1,4 @@
 import os
-from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import psycopg2
 
@@ -7,15 +6,8 @@ import psycopg2
 config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.env')
 load_dotenv(config_path)
 
-def get_engine():
-    user = os.getenv("DB_USER")
-    password = os.getenv("DB_PASS")
-    host = os.getenv("DB_HOST")
-    port = os.getenv("DB_PORT")
-    dbname = os.getenv("DB_NAME")
-
-    conn_str = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}?sslmode=require"
-    return create_engine(conn_str)
+# NOTE: We avoid heavy dependencies (like SQLAlchemy/Pandas) for PythonAnywhere free tier.
+# Use lightweight psycopg2 connections for API preview endpoints.
 
 def get_connection():
     uri = os.getenv("AIVEN_PG_URI") or os.getenv("DATABASE_URL")
