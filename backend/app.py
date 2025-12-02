@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 import os
+import sys
 import json
 from decimal import Decimal
 from typing import cast
@@ -9,6 +10,10 @@ from typing import cast
 basedir = os.path.abspath(os.path.dirname(__file__))
 # Build path to frontend/dist
 static_folder = os.path.join(os.path.dirname(basedir), 'frontend', 'dist')
+
+# Ensure backend package path is importable in hosted environments
+if basedir not in sys.path:
+    sys.path.insert(0, basedir)
 
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
 CORS(app)  # Enable CORS for all routes
@@ -61,7 +66,11 @@ def get_pipelines():
 @app.route('/api/pipelines/<pipeline_id>/data')
 def get_pipeline_data(pipeline_id):
     """API route to fetch actual data from PostgreSQL for a specific pipeline"""
-    from utils.connection import get_connection
+    try:
+        from utils.connection import get_connection
+    except ModuleNotFoundError:
+        # Fallback: try absolute import if relative fails
+        from backend.utils.connection import get_connection
     
     # Map pipeline IDs to their database table names
     pipeline_table_map = {
