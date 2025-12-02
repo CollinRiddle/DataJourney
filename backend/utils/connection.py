@@ -3,7 +3,9 @@ from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import psycopg2
 
-load_dotenv("config/config.env")
+# Load environment variables from config.env with absolute path
+config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.env')
+load_dotenv(config_path)
 
 def get_engine():
     user = os.getenv("DB_USER")
@@ -19,6 +21,7 @@ def get_connection():
     uri = os.getenv("AIVEN_PG_URI") or os.getenv("DATABASE_URL")
     if not uri:
         raise RuntimeError("Database URI not set (AIVEN_PG_URI or DATABASE_URL)")
+    # Normalize postgres:// to postgresql:// for compatibility
     if uri.startswith("postgres://"):
         uri = uri.replace("postgres://", "postgresql://", 1)
     conn = psycopg2.connect(uri)
