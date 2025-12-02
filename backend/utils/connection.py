@@ -11,6 +11,15 @@ load_dotenv(config_path)
 
 def get_connection():
     uri = os.getenv("AIVEN_PG_URI") or os.getenv("DATABASE_URL")
+    # Fallback: build URI from discrete DB_* settings if present
+    if not uri:
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASS")
+        host = os.getenv("DB_HOST")
+        port = os.getenv("DB_PORT")
+        dbname = os.getenv("DB_NAME")
+        if all([user, password, host, port, dbname]):
+            uri = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode=require"
     if not uri:
         raise RuntimeError("Database URI not set (AIVEN_PG_URI or DATABASE_URL)")
     # Normalize postgres:// to postgresql:// for compatibility
