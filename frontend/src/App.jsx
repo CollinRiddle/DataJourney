@@ -202,7 +202,7 @@ function App() {
             e.target.style.transform = "translateY(0)";
           }}
         >
-          🏠 Home
+          Home
         </button>
       </header>
 
@@ -484,7 +484,7 @@ function HomeView() {
   const conceptCards = [
     {
       id: "visualization",
-      icon: "📊",
+      icon: "",
       title: "Why Visualize Workflows?",
       description: "Data pipelines are complex systems that transform raw data through multiple stages. Visualization helps engineers and stakeholders understand data flow, identify bottlenecks, and optimize performance. A clear visual representation of your workflow is essential for maintaining data integrity and system reliability.",
       detail: "Workflows drive business value. From ETL processes to machine learning pipelines, understanding how data moves through your systems is critical for decision-making and debugging.",
@@ -492,7 +492,7 @@ function HomeView() {
     },
     {
       id: "understanding",
-      icon: "🔍",
+      icon: "",
       title: "Understanding Data Stages",
       description: "Each stage in a data pipeline performs specific transformations. From data ingestion to final loading, understanding what happens at each stage helps you trace data quality issues and optimize performance.",
       detail: "Every transformation matters. Whether it's cleaning, validating, or aggregating—each stage plays a crucial role in the overall pipeline success.",
@@ -500,7 +500,7 @@ function HomeView() {
     },
     {
       id: "architecture",
-      icon: "⚙️",
+      icon: "",
       title: "Pipeline Architecture Patterns",
       description: "Learn industry-standard patterns for building scalable and maintainable data pipelines. From linear flows to complex branching logic, discover how successful organizations structure their data operations.",
       detail: "Good architecture enables growth. Understanding design patterns helps you build systems that scale with your data needs.",
@@ -508,7 +508,7 @@ function HomeView() {
     },
     {
       id: "career",
-      icon: "🚀",
+      icon: "",
       title: "Launch Your Data Career",
       description: "Data engineering is one of the fastest-growing fields in tech. DataJourney prepares you for real-world challenges by teaching through hands-on exploration of production-like pipelines.",
       detail: "The future is data-driven. Master pipeline concepts now and position yourself for high-demand data engineering roles.",
@@ -613,7 +613,7 @@ function HomeView() {
               marginBottom: "2rem",
             }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "4rem", marginBottom: "0.5rem" }}>🖼️</div>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem", color: "#6b7280" }}>[Image]</div>
                 <p style={{ color: "#9ca3af", margin: 0 }}>Image placeholder</p>
               </div>
             </div>
@@ -739,7 +739,7 @@ function InfoCard({ card, onClick }) {
         fontSize: "0.85rem",
         fontWeight: "600",
       }}>
-        Click to learn more →
+        Click to learn more
       </div>
     </div>
   );
@@ -800,7 +800,7 @@ function DataPreview({ pipelineId, pipelineName }) {
   if (loading) {
     return (
       <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+        <div style={{ fontSize: '1rem', marginBottom: '1rem' }}>Loading...</div>
         <div>Loading pipeline data...</div>
       </div>
     );
@@ -809,8 +809,8 @@ function DataPreview({ pipelineId, pipelineName }) {
   if (error) {
     return (
       <div style={{ textAlign: 'center', color: '#ef4444', padding: '2rem' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
-        <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Error Loading Data</div>
+        <div style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '1rem' }}>Error Loading Data</div>
+        <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}></div>
         <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>{error}</div>
       </div>
     );
@@ -819,7 +819,7 @@ function DataPreview({ pipelineId, pipelineName }) {
   if (data.length === 0) {
     return (
       <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📭</div>
+        <div style={{ fontSize: '1rem', marginBottom: '1rem' }}>No Data</div>
         <div>No data available for this pipeline</div>
         <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Run the pipeline to populate the database</div>
       </div>
@@ -896,7 +896,7 @@ function DataPreview({ pipelineId, pipelineName }) {
           textAlign: 'center'
         }}>
           <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Processing Status</div>
-          <div style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: '600' }}>✓ Complete</div>
+          <div style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: '600' }}>Complete</div>
         </div>
       </div>
       
@@ -996,7 +996,7 @@ function DataPreview({ pipelineId, pipelineName }) {
               fontWeight: '500'
             }}
           >
-            ← Previous
+            Previous
           </button>
           <button
             onClick={() => setDisplayStart(Math.min(safeData.length - rowsPerPage, displayStart + rowsPerPage))}
@@ -1012,7 +1012,7 @@ function DataPreview({ pipelineId, pipelineName }) {
               fontWeight: '500'
             }}
           >
-            Next →
+            Next
           </button>
         </div>
       </div>
@@ -1118,7 +1118,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
             }
           }}
         >
-          📊 Pipeline Flow
+          Pipeline Flow
         </button>
         <button
           onClick={() => setActiveTab('data')}
@@ -1144,7 +1144,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
             }
           }}
         >
-          📋 Output Data
+          Output Data
         </button>
         {pipeline.detailed_explanation && (
           <button
@@ -1171,7 +1171,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
               }
             }}
           >
-            📖 More Details
+            More Details
           </button>
         )}
       </div>
@@ -1322,7 +1322,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
               alignItems: "center",
               gap: "0.5rem",
             }}>
-              <span>📋</span> Pipeline Overview
+              Pipeline Overview
             </h3>
             <p style={{
               fontSize: "1.05rem",
@@ -1348,7 +1348,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
               marginBottom: "1rem",
               color: "#a5b4fc",
             }}>
-              💡 What You'll Learn
+              What You'll Learn
             </h4>
             <ul style={{
               margin: 0,
@@ -1373,7 +1373,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
               alignItems: "center",
               gap: "0.5rem",
             }}>
-              <span>🔍</span> Stage-by-Stage Breakdown
+              Stage-by-Stage Breakdown
             </h3>
             
             {pipeline.detailed_explanation.stage_details.map((stageDetail, idx) => {
@@ -1427,7 +1427,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                     }}>
-                      ▸ What Happens
+                      What Happens
                     </div>
                     <p style={{
                       margin: 0,
@@ -1449,7 +1449,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                     }}>
-                      ▸ Why It Matters
+                      Why It Matters
                     </div>
                     <p style={{
                       margin: 0,
@@ -1476,7 +1476,7 @@ function PipelineView({ pipeline, selectedStage, onStageClick, getStageColor }) 
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                     }}>
-                      🔧 Technical Note
+                      Technical Note
                     </div>
                     <p style={{
                       margin: 0,
@@ -1951,7 +1951,7 @@ function StageNode({ stage, isSelected, onClick, color, branchLabel }) {
           fontWeight: "600",
           textTransform: "uppercase",
         }}>
-          🔀 {branchLabel}
+          Branch: {branchLabel}
         </div>
       )}
     </div>
@@ -2006,7 +2006,7 @@ function StageDetailsPanel({ stage, stageColor, onClose }) {
           marginBottom: "1.5rem",
         }}>
           <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#EC4899", marginBottom: "0.5rem" }}>
-            🔀 Branch Paths
+            Branch Paths
           </div>
           {stage.branches.map((branch, idx) => (
             <div key={idx} style={{ color: "#d1d5db", marginTop: "0.5rem", fontSize: "0.9rem" }}>
@@ -2025,7 +2025,7 @@ function StageDetailsPanel({ stage, stageColor, onClose }) {
           marginBottom: "1.5rem",
         }}>
           <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#93c5fd", marginBottom: "0.5rem" }}>
-            💡 Notes
+            Notes
           </div>
           <div style={{ color: "#d1d5db" }}>{stage.notes}</div>
         </div>
