@@ -484,7 +484,7 @@ function HomeView() {
   const conceptCards = [
     {
       id: "visualization",
-      icon: "",
+      icon: "📊",
       title: "Why Visualize Workflows?",
       description: "Data pipelines are complex systems that transform raw data through multiple stages. Visualization helps engineers and stakeholders understand data flow, identify bottlenecks, and optimize performance. A clear visual representation of your workflow is essential for maintaining data integrity and system reliability.",
       detail: "Workflows drive business value. From ETL processes to machine learning pipelines, understanding how data moves through your systems is critical for decision-making and debugging.",
@@ -492,7 +492,7 @@ function HomeView() {
     },
     {
       id: "understanding",
-      icon: "",
+      icon: "🔍",
       title: "Understanding Data Stages",
       description: "Each stage in a data pipeline performs specific transformations. From data ingestion to final loading, understanding what happens at each stage helps you trace data quality issues and optimize performance.",
       detail: "Every transformation matters. Whether it's cleaning, validating, or aggregating—each stage plays a crucial role in the overall pipeline success.",
@@ -500,7 +500,7 @@ function HomeView() {
     },
     {
       id: "architecture",
-      icon: "",
+      icon: "⚙️",
       title: "Pipeline Architecture Patterns",
       description: "Learn industry-standard patterns for building scalable and maintainable data pipelines. From linear flows to complex branching logic, discover how successful organizations structure their data operations.",
       detail: "Good architecture enables growth. Understanding design patterns helps you build systems that scale with your data needs.",
@@ -508,7 +508,7 @@ function HomeView() {
     },
     {
       id: "career",
-      icon: "",
+      icon: "🚀",
       title: "Launch Your Data Career",
       description: "Data engineering is one of the fastest-growing fields in tech. DataJourney prepares you for real-world challenges by teaching through hands-on exploration of production-like pipelines.",
       detail: "The future is data-driven. Master pipeline concepts now and position yourself for high-demand data engineering roles.",
@@ -601,21 +601,21 @@ function HomeView() {
               </button>
             </div>
 
-            {/* Image Placeholder */}
+            {/* Image Section */}
             <div style={{
-              background: "rgba(102, 126, 234, 0.1)",
-              border: "2px dashed rgba(102, 126, 234, 0.3)",
               borderRadius: "12px",
               height: "250px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              overflow: "hidden",
               marginBottom: "2rem",
+              background: `linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('${
+                selectedCard.id === "visualization" ? "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=250&fit=crop&q=80" :
+                selectedCard.id === "understanding" ? "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=250&fit=crop&q=80" :
+                selectedCard.id === "architecture" ? "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&h=250&fit=crop&q=80" :
+                "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=250&fit=crop&q=80"
+              }')`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
             }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "2rem", marginBottom: "0.5rem", color: "#6b7280" }}>[Image]</div>
-                <p style={{ color: "#9ca3af", margin: 0 }}>Image placeholder</p>
-              </div>
             </div>
 
             {/* Description */}

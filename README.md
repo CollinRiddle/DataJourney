@@ -13,7 +13,7 @@ an article centered around the needs and challenges of well-designed pipelines. 
 discussion by stating that "Most of these barriers manifest in data cleaning and merging, and require
 a data engineer to support some parts of the analysis." [1]. This study goes on to express growing
 issues and challenges that exist within this realm, especially as more and more data flows into the
-world of business. Consider also the job market surronding data engineers (who are often responsible
+world of business. Consider also the job market surrounding data engineers (who are often responsible
 for the creation, maintenance, and modification of pipelines). 365 Data Science states that this field
 employs around "...150,000 professionals, and it added over 20,000 new jobs in the past year."[2].
 All that is to say that these articles provide an excellent real-world perspective and supporting reasons
