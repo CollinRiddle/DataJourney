@@ -52,13 +52,27 @@ function App() {
     if (stage.stage_type === 'data_branching') {
       return "#EC4899"; // Always pink for branch decision points
     }
+    // Color grouping: allow explicit parallel_group, otherwise fall back to stage_number
+    // Weather Analytics uses parallel execution (parallel_path) so we group those fetch steps
+    const computeColorKey = (s) => {
+      if (s.parallel_group) return s.parallel_group;
+      if (pipeline.pipeline_id === 'weather_analytics' && s.parallel_path) return 'weather_parallel_fetch';
+      return s.stage_number;
+    };
+
+    // Build ordered unique keys to preserve stage progression
+    const orderedStages = [...pipeline.stages].sort((a, b) => a.stage_number - b.stage_number);
+    const uniqueKeys = [];
+    orderedStages.forEach((s) => {
+      const key = computeColorKey(s);
+      if (!uniqueKeys.includes(key)) uniqueKeys.push(key);
+    });
+
+    const targetKey = computeColorKey(stage);
+    const stageIndex = uniqueKeys.indexOf(targetKey);
     
-    // Find all unique stage numbers in order
-    const uniqueStageNumbers = [...new Set(pipeline.stages.map(s => s.stage_number))].sort((a, b) => a - b);
-    const stageIndex = uniqueStageNumbers.indexOf(stage.stage_number);
-    
-    // Use modulo to cycle through colors if we have more stages than colors
-    return colorPalette[stageIndex % colorPalette.length];
+    // Use modulo to cycle through colors if we have more groups than colors
+    return colorPalette[(stageIndex >= 0 ? stageIndex : 0) % colorPalette.length];
   };
 
   const handleStageClick = (stage) => {
